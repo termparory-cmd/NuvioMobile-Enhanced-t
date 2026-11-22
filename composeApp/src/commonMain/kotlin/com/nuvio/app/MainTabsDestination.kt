@@ -71,6 +71,7 @@ internal fun MainTabsDestination(
     liquidGlassNativeTabBarSupported: Boolean,
     liquidGlassNativeTabBarEnabled: Boolean,
     showLiveTvInNavigation: Boolean,
+    showSearchInNavigation: Boolean = true,
     requests: AppTabRequests,
     state: AppTabState,
     actions: (isTabletLayout: Boolean) -> AppTabActions,
@@ -111,6 +112,7 @@ internal fun MainTabsDestination(
         val floatingNavigationItems = mainFloatingNavigationItems(
             highlightedTab = highlightedTab,
             showLiveTv = showLiveTvInNavigation,
+            showSearch = showSearchInNavigation,
             onTabSelected = onTabSelected,
             onProfileSelected = onProfileSelected,
             onAddProfileRequested = onAddProfileRequested,
@@ -129,6 +131,7 @@ internal fun MainTabsDestination(
                     MainClassicNavigationBar(
                         highlightedTab = highlightedTab,
                         showLiveTv = showLiveTvInNavigation,
+                        showSearch = showSearchInNavigation,
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
@@ -174,6 +177,7 @@ internal fun MainTabsDestination(
                     TabletFloatingTopBar(
                         selectedTab = highlightedTab,
                         showLiveTv = showLiveTvInNavigation,
+                        showSearch = showSearchInNavigation,
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
@@ -248,6 +252,7 @@ private fun MainFloatingNavigationBar(
 internal fun mainFloatingNavigationItems(
     highlightedTab: AppScreenTab,
     showLiveTv: Boolean,
+    showSearch: Boolean = true,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
@@ -262,14 +267,16 @@ internal fun mainFloatingNavigationItems(
             label = stringResource(Res.string.compose_nav_home),
         ),
     )
-    add(
-        FloatingNavigationItem(
-            selected = highlightedTab == AppScreenTab.Search,
-            onClick = { onTabSelected(AppScreenTab.Search) },
-            drawable = Res.drawable.sidebar_search,
-            label = stringResource(Res.string.compose_nav_search),
-        ),
-    )
+    if (showSearch) {
+        add(
+            FloatingNavigationItem(
+                selected = highlightedTab == AppScreenTab.Search,
+                onClick = { onTabSelected(AppScreenTab.Search) },
+                drawable = Res.drawable.sidebar_search,
+                label = stringResource(Res.string.compose_nav_search),
+            ),
+        )
+    }
     add(
         FloatingNavigationItem(
             selected = highlightedTab == AppScreenTab.Library,
@@ -312,6 +319,7 @@ internal fun mainFloatingNavigationItems(
 internal fun MainClassicNavigationBar(
     highlightedTab: AppScreenTab,
     showLiveTv: Boolean,
+    showSearch: Boolean = true,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
@@ -324,12 +332,14 @@ internal fun MainClassicNavigationBar(
             icon = Icons.Filled.Home,
             contentDescription = stringResource(Res.string.compose_nav_home),
         )
-        NavItem(
-            selected = highlightedTab == AppScreenTab.Search,
-            onClick = { onTabSelected(AppScreenTab.Search) },
-            icon = Res.drawable.sidebar_search,
-            contentDescription = stringResource(Res.string.compose_nav_search),
-        )
+        if (showSearch) {
+            NavItem(
+                selected = highlightedTab == AppScreenTab.Search,
+                onClick = { onTabSelected(AppScreenTab.Search) },
+                icon = Res.drawable.sidebar_search,
+                contentDescription = stringResource(Res.string.compose_nav_search),
+            )
+        }
         NavItem(
             selected = highlightedTab == AppScreenTab.Library,
             onClick = { onTabSelected(AppScreenTab.Library) },
@@ -362,6 +372,7 @@ internal fun MainClassicNavigationBar(
 internal fun BoxScope.SettingsRouteNavigationBar(
     isTabletLayout: Boolean,
     showLiveTv: Boolean,
+    showSearch: Boolean = true,
     backdrop: Backdrop?,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
@@ -390,6 +401,7 @@ internal fun BoxScope.SettingsRouteNavigationBar(
             TabletFloatingTopBar(
                 selectedTab = highlightedTab,
                 showLiveTv = showLiveTv,
+                showSearch = showSearch,
                 onTabSelected = onTabSelected,
                 onProfileSelected = onProfileSelected,
                 onAddProfileRequested = onAddProfileRequested,
@@ -405,6 +417,7 @@ internal fun BoxScope.SettingsRouteNavigationBar(
                 MainClassicNavigationBar(
                     highlightedTab = highlightedTab,
                     showLiveTv = showLiveTv,
+                    showSearch = showSearch,
                     onTabSelected = onTabSelected,
                     onProfileSelected = onProfileSelected,
                     onAddProfileRequested = onAddProfileRequested,
@@ -418,6 +431,7 @@ internal fun BoxScope.SettingsRouteNavigationBar(
                 items = mainFloatingNavigationItems(
                     highlightedTab = highlightedTab,
                     showLiveTv = showLiveTv,
+                    showSearch = showSearch,
                     onTabSelected = onTabSelected,
                     onProfileSelected = onProfileSelected,
                     onAddProfileRequested = onAddProfileRequested,

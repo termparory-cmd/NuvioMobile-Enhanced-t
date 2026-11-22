@@ -803,6 +803,7 @@ object TmdbMetadataService {
             poster = enrichment.poster,
             background = enrichment.backdrop,
             logo = enrichment.logo,
+            heroPoster = enrichment.heroPoster,
             description = enrichment.description,
             releaseInfo = enrichment.releaseInfo,
             lastAirDate = enrichment.lastAirDate,
@@ -842,6 +843,7 @@ object TmdbMetadataService {
                 background = enrichment.backdrop ?: updated.background,
                 poster = enrichment.poster ?: updated.poster,
                 logo = enrichment.logo ?: updated.logo,
+                heroPoster = enrichment.heroPoster ?: updated.heroPoster,
             )
         }
 
@@ -1139,6 +1141,12 @@ object TmdbMetadataService {
             poster = buildImageUrl(
                 originalImagePath(images?.posters, originalArtworkLanguage) ?: details.posterPath,
                 "w500",
+            ),
+            heroPoster = buildImageUrl(
+                images?.posters.orEmpty().selectHeroCardPosterPath()
+                    ?: originalImagePath(images?.posters, originalArtworkLanguage)
+                    ?: details.posterPath,
+                "original",
             ),
             people = people,
             director = directors,
@@ -1526,6 +1534,7 @@ internal data class TmdbEnrichment(
     val backdrop: String?,
     val logo: String?,
     val poster: String?,
+    val heroPoster: String? = null,
     val people: List<MetaPerson>,
     val director: List<String>,
     val writer: List<String>,
@@ -1553,6 +1562,7 @@ internal data class TmdbEnrichment(
             backdrop != null ||
             logo != null ||
             poster != null ||
+            heroPoster != null ||
             people.isNotEmpty() ||
             director.isNotEmpty() ||
             writer.isNotEmpty() ||

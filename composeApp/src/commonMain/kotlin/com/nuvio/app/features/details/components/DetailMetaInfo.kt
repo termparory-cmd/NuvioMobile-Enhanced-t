@@ -34,7 +34,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
@@ -242,12 +244,15 @@ internal fun RatingsRow(
 }
 
 @Composable
-internal fun ImdbRatingSourceLabel(storeTextStyle: TextStyle) {
+internal fun ImdbRatingSourceLabel(
+    storeTextStyle: TextStyle,
+    scale: Float = 1f,
+) {
     if (AppFeaturePolicy.imdbRatingLogoEnabled) {
         Image(
             painter = painterResource(Res.drawable.rating_imdb),
             contentDescription = stringResource(Res.string.source_imdb),
-            modifier = Modifier.size(width = 30.dp, height = 16.dp),
+            modifier = Modifier.size(width = (30f * scale).dp, height = (16f * scale).dp),
         )
     } else {
         Text(
@@ -284,27 +289,28 @@ internal fun DetailHeroMetaBadge(
     text: String,
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     secondaryText: String? = null,
+    scale: Float = 1f,
 ) {
     val borderColor = contentColor.copy(alpha = 0.55f)
     Row(
         modifier = Modifier
             .border(
                 border = BorderStroke(1.dp, borderColor),
-                shape = RoundedCornerShape(6.dp),
+                shape = RoundedCornerShape((6f * scale).dp),
             )
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = (8f * scale).dp, vertical = (4f * scale).dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy((8f * scale).dp),
     ) {
-        MetaBadgeText(text = text, color = contentColor)
+        MetaBadgeText(text = text, color = contentColor, scale = scale)
         secondaryText?.let { secondary ->
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(12.dp)
+                    .height((12f * scale).dp)
                     .background(borderColor),
             )
-            MetaBadgeText(text = secondary, color = contentColor)
+            MetaBadgeText(text = secondary, color = contentColor, scale = scale)
         }
     }
 }
@@ -313,15 +319,28 @@ internal fun DetailHeroMetaBadge(
 private fun MetaBadgeText(
     text: String,
     color: Color,
+    scale: Float = 1f,
 ) {
+    val baseStyle = MaterialTheme.typography.labelMedium
+    val scaledStyle = if (scale == 1f) {
+        baseStyle
+    } else {
+        baseStyle.copy(
+            fontSize = baseStyle.fontSize.scaleMetaUnit(scale),
+            lineHeight = baseStyle.lineHeight.scaleMetaUnit(scale),
+        )
+    }
     Text(
         text = text,
-        style = MaterialTheme.typography.labelMedium,
+        style = scaledStyle,
         color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
 }
+
+private fun TextUnit.scaleMetaUnit(scale: Float): TextUnit =
+    if (isSpecified && scale != 1f) this * scale else this
 
 internal val ImdbYellow = Color(0xFFF5C518)
 

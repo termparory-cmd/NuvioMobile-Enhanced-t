@@ -3,7 +3,9 @@ package com.nuvio.app.features.home.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -35,6 +37,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -69,6 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -78,11 +84,15 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.TrailerPlaybackMode
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.LocalDynamicArtworkBackgroundColor
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.platformPhysicalTopInset
 import com.nuvio.app.core.ui.rememberDynamicArtworkBackgroundEnabled
 import com.nuvio.app.core.ui.PrefetchArtworkDominantColors
+import com.nuvio.app.core.ui.desaturate
 import com.nuvio.app.core.ui.focusedAlignment
+import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.rememberBackdropFocusState
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.revealAlpha
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
@@ -99,6 +109,7 @@ import com.nuvio.app.features.home.HomeHeroArtworkSource
 import com.nuvio.app.features.home.HomeHeroStyle
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.player.MiniPlayerController
+import com.nuvio.app.features.tmdb.upgradeTmdbPosterUrl
 import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.trailer.TrailerPlaybackSource
 import com.nuvio.app.core.ui.centeredVerticalBarPadding
@@ -160,13 +171,18 @@ private object HomeHeroTrailerPlaybackPositionStore {
 }
 
 internal const val TMDB_POSTER_HEIGHT_RATIO = 1.5f
+internal const val HERO_CARD_PORTRAIT_HEIGHT_RATIO = 1.4f
+internal const val HERO_CARD_SHADOW_DESATURATION = 0.9f
+internal val HERO_CARD_BOTTOM_SHADOW_HEIGHT = 34.dp
 
 internal const val BACKDROP_HEIGHT_RATIO = 9f / 16f
 
 private const val CARD_WIDE_MAX_VIEWPORT_FRACTION = 0.72f
-internal val HERO_CARD_CORNER_RADIUS = 28.dp
 internal val HERO_CARD_HORIZONTAL_PADDING = 12.dp
-internal val HERO_CARD_TOP_PADDING = 8.dp
+internal val HERO_CARD_TOP_PADDING = 0.dp
+
+internal fun heroCardCornerRadius(posterCardCornerRadiusDp: Int): Dp =
+    (posterCardCornerRadiusDp.coerceAtLeast(0) * 1.5f).dp
 
 internal fun heroUsesWideArtwork(
     maxWidth: Dp,
@@ -186,7 +202,7 @@ internal fun cardHeroHeight(
         wideHeight
     }
 } else {
-    maxWidth * TMDB_POSTER_HEIGHT_RATIO
+    maxWidth * HERO_CARD_PORTRAIT_HEIGHT_RATIO
 }
 
 internal data class HomeHeroLayout(
@@ -214,7 +230,10 @@ internal fun HomeHeroSection(
     trailerStartUnmuted: Boolean = false,
     showImdbRating: Boolean = true,
     showMdbListRatings: Boolean = false,
+    isItemSaved: (MetaPreview) -> Boolean = { false },
     onItemClick: ((MetaPreview) -> Unit)? = null,
+    onPlayClick: ((MetaPreview) -> Unit)? = null,
+    onToggleSavedClick: ((MetaPreview) -> Unit)? = null,
     onActiveArtworkChange: ((String?) -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
@@ -261,9 +280,17 @@ internal fun HomeHeroSection(
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val useNativeNavigation = LocalUseNativeNavigation.current
+    val posterCardStyle = rememberPosterCardStyleUiState()
+    val heroFadeColorState = LocalDynamicArtworkBackgroundColor.current
+    val themeBackground = MaterialTheme.colorScheme.background
+    val effectiveStretchPx: () -> Float = if (isCardStyle) {
+        { 0f }
+    } else {
+        stretchPx
+    }
     val cardInsetModifier = if (isCardStyle) {
         Modifier.padding(
-            top = statusBarTopPadding + HERO_CARD_TOP_PADDING,
+            top = HERO_CARD_TOP_PADDING,
             start = HERO_CARD_HORIZONTAL_PADDING,
             end = HERO_CARD_HORIZONTAL_PADDING,
         )
@@ -271,9 +298,17 @@ internal fun HomeHeroSection(
         Modifier
     }
     val heroShape = if (isCardStyle) {
-        RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
+        RoundedCornerShape(heroCardCornerRadius(posterCardStyle.cornerRadiusDp))
     } else {
         RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+    }
+    val cardDepthModifier = if (isCardStyle) {
+        Modifier.nuvioCardDepth(
+            shape = heroShape,
+            surface = NuvioCardDepthSurface.Posters,
+        )
+    } else {
+        Modifier
     }
 
     Column(
@@ -289,7 +324,8 @@ internal fun HomeHeroSection(
                     itemCount = items.size,
                     coroutineScope = coroutineScope,
                 )
-                .clip(heroShape),
+                .clip(heroShape)
+                .then(cardDepthModifier),
         ) {
             val baseLayout = homeHeroLayout(
                 maxWidthDp = maxWidth.value,
@@ -311,7 +347,7 @@ internal fun HomeHeroSection(
                 !isCardStyle -> HomeHeroArtworkSource.BACKDROP
                 heroUsesWideArtwork(maxWidth, viewportHeight, baseLayout.isTablet) ->
                     HomeHeroArtworkSource.BACKDROP
-                else -> HomeHeroArtworkSource.POSTER
+                else -> HomeHeroArtworkSource.HERO_CARD_POSTER
             }
             val artworkParallax = if (isCardStyle) 0f else HERO_BACKGROUND_PARALLAX
             val artworkBaseScale = if (isCardStyle) 1f else HERO_BACKGROUND_SCALE
@@ -432,7 +468,7 @@ internal fun HomeHeroSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heroStretchHeight(layout.heroHeight, stretchPx),
+                    .heroStretchHeight(layout.heroHeight, effectiveStretchPx),
             ) {
                 HorizontalPager(
                     state = pagerState,
@@ -451,7 +487,7 @@ internal fun HomeHeroSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(layout.heroHeight)
-                            .heroStretchZoom(stretchPx),
+                            .heroStretchZoom(effectiveStretchPx),
                     ) {
                         visiblePages.forEach { layer ->
                             val item = items[layer.itemIndex]
@@ -537,9 +573,69 @@ internal fun HomeHeroSection(
                         }
                     }
 
-                    if (!isCardStyle) {
-                        val heroFadeColorState = LocalDynamicArtworkBackgroundColor.current
-                        val themeBackground = MaterialTheme.colorScheme.background
+                    if (isCardStyle) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .drawBehind {
+                                    val desaturatedFade = (heroFadeColorState?.value ?: themeBackground)
+                                        .desaturate(HERO_CARD_SHADOW_DESATURATION)
+                                    drawRect(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                desaturatedFade.copy(alpha = 0.14f),
+                                                desaturatedFade.copy(alpha = 0.48f),
+                                                desaturatedFade.copy(alpha = 0.84f),
+                                            ),
+                                        ),
+                                    )
+                                }
+                                .clickable(enabled = onItemClick != null) {
+                                    onItemClick?.invoke(currentItem)
+                                },
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(layout.contentWidthFraction)
+                                    .widthIn(max = layout.contentMaxWidth),
+                                contentAlignment = Alignment.BottomStart,
+                            ) {
+                                visiblePages.forEach { layer ->
+                                    val layerItem = items[layer.itemIndex]
+                                    key(layerItem.stableKey()) {
+                                        Box(
+                                            modifier = Modifier.graphicsLayer {
+                                                val offset = heroPageOffset(pagerState, layer.page)
+                                                val visibility = (1f - abs(offset)).coerceIn(0f, 1f)
+                                                alpha = ((visibility - 0.5f) * 2f).coerceIn(0f, 1f)
+                                            },
+                                        ) {
+                                            HeroContentBlock(
+                                                item = layerItem,
+                                                layout = layout,
+                                                showImdbRating = showImdbRating,
+                                                showMdbListRatings = showMdbListRatings,
+                                                isCardStyle = true,
+                                                isSaved = isItemSaved(layerItem),
+                                                onItemClick = onItemClick,
+                                                onPlayClick = onPlayClick,
+                                                onToggleSavedClick = onToggleSavedClick,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -568,17 +664,7 @@ internal fun HomeHeroSection(
                                     drawRect(Brush.verticalGradient(colors = listOf(fade.copy(alpha = 0f), fade)))
                                 },
                         )
-                    }
 
-                    if (isCardStyle) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clickable(enabled = onItemClick != null) {
-                                    onItemClick?.invoke(currentItem)
-                                },
-                        )
-                    } else {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -622,7 +708,11 @@ internal fun HomeHeroSection(
                                             layout = layout,
                                             showImdbRating = showImdbRating,
                                             showMdbListRatings = showMdbListRatings,
+                                            isCardStyle = false,
+                                            isSaved = false,
                                             onItemClick = onItemClick,
+                                            onPlayClick = null,
+                                            onToggleSavedClick = null,
                                         )
                                     }
                                     }
@@ -676,12 +766,24 @@ internal fun HomeHeroSection(
             }
         }
 
-        if (isCardStyle && items.size > 1) {
-            Spacer(modifier = Modifier.height(12.dp))
-            HeroPageIndicator(
-                itemCount = items.size,
-                pagerState = pagerState,
-                coroutineScope = coroutineScope,
+        if (isCardStyle) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(HERO_CARD_BOTTOM_SHADOW_HEIGHT)
+                    .drawBehind {
+                        val fade = heroFadeColorState?.value ?: themeBackground
+                        val desaturatedFade = fade.desaturate(HERO_CARD_SHADOW_DESATURATION)
+                        drawRect(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    desaturatedFade.copy(alpha = 0.35f),
+                                    desaturatedFade.copy(alpha = 0.72f),
+                                    fade.copy(alpha = 1f),
+                                ),
+                            ),
+                        )
+                    },
             )
         }
     }
@@ -728,6 +830,8 @@ private data class HeroPageLayer(
 private fun heroArtworkUrl(item: MetaPreview, source: HomeHeroArtworkSource): String? = when (source) {
     HomeHeroArtworkSource.POSTER -> item.poster ?: item.banner
     HomeHeroArtworkSource.BACKDROP -> item.banner ?: item.poster
+    HomeHeroArtworkSource.HERO_CARD_POSTER ->
+        item.heroPoster ?: upgradeTmdbPosterUrl(item.poster, targetSize = "original") ?: item.banner
 }
 
 private fun heroPageOffset(
@@ -756,50 +860,56 @@ internal fun HomeHeroReservedSpace(
     heroStyle: HomeHeroStyle = HomeHeroStyle.FULL_BLEED,
 ) {
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
-    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val posterCardStyle = rememberPosterCardStyleUiState()
 
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (isCardStyle) {
-                    Modifier.padding(
-                        top = statusBarTopPadding + HERO_CARD_TOP_PADDING,
-                        start = HERO_CARD_HORIZONTAL_PADDING,
-                        end = HERO_CARD_HORIZONTAL_PADDING,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .clip(
-                if (isCardStyle) {
-                    RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
-                } else {
-                    RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-                },
-            ),
-    ) {
-        val baseLayout = homeHeroLayout(
-            maxWidthDp = maxWidth.value,
-            viewportHeightDp = viewportHeight?.value,
-            mobileBelowSectionHeightHintDp = mobileBelowSectionHeightHint?.value,
-        )
-        val heroHeight = if (isCardStyle) {
-            cardHeroHeight(
-                maxWidth = maxWidth,
-                viewportHeight = viewportHeight,
-                isTablet = baseLayout.isTablet,
-            )
-        } else {
-            baseLayout.heroHeight
-        }
-
-        Spacer(
+    Column(modifier = modifier.fillMaxWidth()) {
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(heroHeight),
-        )
+                .then(
+                    if (isCardStyle) {
+                        Modifier.padding(
+                            top = HERO_CARD_TOP_PADDING,
+                            start = HERO_CARD_HORIZONTAL_PADDING,
+                            end = HERO_CARD_HORIZONTAL_PADDING,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .clip(
+                    if (isCardStyle) {
+                        RoundedCornerShape(heroCardCornerRadius(posterCardStyle.cornerRadiusDp))
+                    } else {
+                        RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                    },
+                ),
+        ) {
+            val baseLayout = homeHeroLayout(
+                maxWidthDp = maxWidth.value,
+                viewportHeightDp = viewportHeight?.value,
+                mobileBelowSectionHeightHintDp = mobileBelowSectionHeightHint?.value,
+            )
+            val heroHeight = if (isCardStyle) {
+                cardHeroHeight(
+                    maxWidth = maxWidth,
+                    viewportHeight = viewportHeight,
+                    isTablet = baseLayout.isTablet,
+                )
+            } else {
+                baseLayout.heroHeight
+            }
+
+            Spacer(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(heroHeight),
+            )
+        }
+
+        if (isCardStyle) {
+            Spacer(modifier = Modifier.height(HERO_CARD_BOTTOM_SHADOW_HEIGHT))
+        }
     }
 }
 
@@ -809,17 +919,22 @@ private fun HeroContentBlock(
     layout: HomeHeroLayout,
     showImdbRating: Boolean,
     showMdbListRatings: Boolean,
+    isCardStyle: Boolean,
+    isSaved: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
+    onPlayClick: ((MetaPreview) -> Unit)?,
+    onToggleSavedClick: ((MetaPreview) -> Unit)?,
 ) {
     var logoLoadError by remember(item.type, item.id, item.logo) {
         mutableStateOf(false)
     }
     val logoUrl = item.logo?.takeIf { it.isNotBlank() }
+    val scale = if (isCardStyle) 0.9f else 1f
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
+            .then(if (isCardStyle) Modifier else Modifier.animateContentSize()),
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         if (logoUrl != null && !logoLoadError) {
@@ -827,7 +942,7 @@ private fun HeroContentBlock(
                 model = logoUrl,
                 contentDescription = item.name,
                 modifier = Modifier
-                    .fillMaxWidth(layout.logoWidthFraction)
+                    .fillMaxWidth(layout.logoWidthFraction * scale)
                     .aspectRatio(2.6f)
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
@@ -837,6 +952,15 @@ private fun HeroContentBlock(
                 onError = { logoLoadError = true },
             )
         } else {
+            val baseTitleStyle = MaterialTheme.typography.displaySmall
+            val titleStyle = if (scale == 1f) {
+                baseTitleStyle
+            } else {
+                baseTitleStyle.copy(
+                    fontSize = if (baseTitleStyle.fontSize.isSpecified) baseTitleStyle.fontSize * scale else baseTitleStyle.fontSize,
+                    lineHeight = if (baseTitleStyle.lineHeight.isSpecified) baseTitleStyle.lineHeight * scale else baseTitleStyle.lineHeight,
+                )
+            }
             Text(
                 text = item.name,
                 modifier = Modifier
@@ -844,11 +968,7 @@ private fun HeroContentBlock(
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },
-                style = if (layout.isTablet) {
-                    MaterialTheme.typography.displaySmall
-                } else {
-                    MaterialTheme.typography.displaySmall
-                },
+                style = titleStyle,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Black,
                 textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
@@ -868,7 +988,7 @@ private fun HeroContentBlock(
             }
         }
         val details = detailsState.value
-        // Fill the gaps a catalog preview leaves (rating, age rating, genre) from
+        // Fill the gaps a catalog preview leaves (rating, age rating, genre, country) from
         // the cached details so the upstream meta rows stay populated on Enhanced.
         val metaItem = remember(item, details) {
             if (details == null) {
@@ -878,30 +998,112 @@ private fun HeroContentBlock(
                     imdbRating = item.imdbRating ?: details.imdbRating,
                     releaseInfo = item.releaseInfo ?: details.releaseInfo,
                     genres = item.genres.ifEmpty { details.genres },
+                    runtime = item.runtime ?: details.runtime,
+                    status = item.status ?: details.status,
                     ageRating = item.ageRating ?: details.ageRating,
+                    language = item.language ?: details.language,
+                    country = item.country ?: details.country,
                 )
             }
         }
-        val synopsis = (item.description ?: details?.description)?.trim()?.takeIf { it.isNotBlank() }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(if (isCardStyle) 6.dp else 12.dp))
         HomeHeroMetaRows(
             item = metaItem,
             isTablet = layout.isTablet,
             showImdbRating = showImdbRating,
             showMdbListRatings = showMdbListRatings,
+            scale = scale,
+            showRatingsRow = !isCardStyle,
         )
 
-        if (synopsis != null) {
-            Spacer(modifier = Modifier.height(10.dp))
+        if (isCardStyle) {
+            Spacer(modifier = Modifier.height(6.dp))
+            HeroCardActionButtons(
+                isSaved = isSaved,
+                onPlayClick = { (onPlayClick ?: onItemClick)?.invoke(item) },
+                onMyListClick = { onToggleSavedClick?.invoke(item) },
+            )
+        } else {
+            val synopsis = (item.description ?: details?.description)?.trim()?.takeIf { it.isNotBlank() }
+            if (synopsis != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = synopsis,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                    textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroCardActionButtons(
+    isSaved: Boolean,
+    onPlayClick: () -> Unit,
+    onMyListClick: () -> Unit,
+) {
+    val buttonShape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(42.dp)
+                .clip(buttonShape)
+                .background(Color.White)
+                .clickable(onClick = onPlayClick),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Color(0xFF111111),
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = synopsis,
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-                textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                text = stringResource(Res.string.action_play),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color(0xFF111111),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(42.dp)
+                .clip(buttonShape)
+                .background(Color(0xFF222222).copy(alpha = 0.88f))
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), buttonShape)
+                .clickable(onClick = onMyListClick),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (isSaved) Icons.Rounded.Check else Icons.Rounded.Add,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = stringResource(Res.string.hero_action_my_list),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
             )
         }
     }

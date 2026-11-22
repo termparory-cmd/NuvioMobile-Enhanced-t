@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyListState
@@ -74,6 +77,8 @@ import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWid
 import com.nuvio.app.features.home.components.HomeSkeletonRow
 import com.nuvio.app.features.home.components.rememberPosterGridColumnCount
 import com.nuvio.app.features.watched.WatchedRepository
+import com.nuvio.app.navigation.LocalNativeNavigationBarHidden
+import com.nuvio.app.navigation.LocalUseNativeNavigation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -102,6 +107,7 @@ import org.jetbrains.compose.resources.stringResource
 fun SearchScreen(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    onBack: (() -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
     onPosterLongClick: ((MetaPreview) -> Unit)? = null,
     searchFocusRequestCount: Int = 0,
@@ -266,9 +272,21 @@ fun SearchScreen(
                 androidx.compose.foundation.layout.Column(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    if (
+                        onBack != null &&
+                        LocalUseNativeNavigation.current &&
+                        !LocalNativeNavigationBarHidden.current
+                    ) {
+                        Spacer(
+                            modifier = Modifier
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .height(44.dp),
+                        )
+                    }
                     NuvioScreenHeader(
                         title = headerTitle,
                         modifier = Modifier.padding(horizontal = 16.dp),
+                        onBack = onBack,
                         actions = {
                             NuvioIconActionButton(
                                 icon = if (searchShown) Icons.Rounded.Close else Icons.Rounded.Search,

@@ -8,6 +8,8 @@ internal actual fun publishNativeTabBarBehavior(behaviorKey: String) = Unit
 
 internal actual fun publishNativeTabBarVisible(visible: Boolean) = Unit
 
+internal actual fun publishNativeSearchTabVisible(visible: Boolean) = Unit
+
 internal actual fun publishNativeSelectedTab(tabName: String) = Unit
 
 internal actual fun publishNativeTabAccentColor(hexColor: String, gradientHexColors: List<String>) = Unit

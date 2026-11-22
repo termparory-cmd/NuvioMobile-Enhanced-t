@@ -86,6 +86,7 @@ internal enum class HomeHeroArtworkSource(
 ) {
     BACKDROP("backdrop"),
     POSTER("poster"),
+    HERO_CARD_POSTER("hero_card_poster"),
     ;
 
     companion object {

@@ -71,6 +71,10 @@ internal object NativeTabBridge {
         publishLiquidGlassNativeTabBarEnabled(enabled && isLiquidGlassNativeTabBarSupported())
     }
 
+    fun publishSearchTabVisible(visible: Boolean) {
+        publishNativeSearchTabVisible(visible)
+    }
+
     fun publishTabBarBehavior(behavior: NuvioTabBarBehavior) {
         val supported = isLiquidGlassNativeTabBarSupported()
         publishLiquidGlassNativeTabBarEnabled(behavior.isEnabled && supported)
@@ -268,6 +272,8 @@ internal expect fun publishLiquidGlassNativeTabBarEnabled(enabled: Boolean)
 internal expect fun publishNativeTabBarBehavior(behaviorKey: String)
 
 internal expect fun publishNativeTabBarVisible(visible: Boolean)
+
+internal expect fun publishNativeSearchTabVisible(visible: Boolean)
 
 internal expect fun publishNativeSelectedTab(tabName: String)
 

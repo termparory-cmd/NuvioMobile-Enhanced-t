@@ -1005,6 +1005,7 @@ final class NativeProfileTabInteractionCoordinator: NSObject, UIGestureRecognize
 final class AppNavigationCoordinator: ObservableObject {
     private static let nativeTabBarVisibleKey = "NuvioNativeTabBarVisible"
     private static let liveTvTabVisibleKey = "NuvioLiveTvNavigationVisible"
+    private static let searchTabVisibleKey = "NuvioSearchTabVisible"
 
     @Published var selectedTab: NuvioAppTab = .home {
         didSet {
@@ -1037,6 +1038,7 @@ final class AppNavigationCoordinator: ObservableObject {
     @Published private(set) var tabBarBehavior: NuvioTabBarBehavior = NuvioTabBarBehavior.current()
     @Published private(set) var isSelectedTabAtRoot = true
     @Published private(set) var isLiveTvTabVisible = false
+    @Published private(set) var isSearchTabVisible = true
     @Published private var localizedTabTitles: [NuvioAppTab: String] = [:]
     @Published private(set) var localizedSwitchProfileTitle = ""
     @Published private(set) var localizedAddProfileTitle = ""
@@ -1058,6 +1060,7 @@ final class AppNavigationCoordinator: ObservableObject {
         setTabBarVisible(true)
         reloadTabBarBehavior()
         reloadLiveTvTabVisibility()
+        reloadSearchTabVisibility()
         NativeTabBridgeKt.observeNativePopToRoot { [weak self] tabName in
             guard let self, let tab = NuvioAppTab.from(kotlinName: tabName) else { return }
             self.coordinator(for: tab).popToRoot()
@@ -1089,7 +1092,10 @@ final class AppNavigationCoordinator: ObservableObject {
     }
 
     var availableTabs: [NuvioAppTab] {
-        NuvioAppTab.allCases.filter { $0 != .liveTv || isLiveTvTabVisible }
+        NuvioAppTab.allCases.filter { tab in
+            (tab != .liveTv || isLiveTvTabVisible) &&
+                (tab != .search || isSearchTabVisible)
+        }
     }
 
     var usesGlassTabBarOverlay: Bool {
@@ -1161,6 +1167,20 @@ final class AppNavigationCoordinator: ObservableObject {
         isLiveTvTabVisible = visible
     }
 
+    func reloadSearchTabVisibility() {
+        let visible: Bool
+        if let stored = UserDefaults.standard.object(forKey: Self.searchTabVisibleKey) as? Bool {
+            visible = stored
+        } else {
+            visible = true
+        }
+        guard isSearchTabVisible != visible else { return }
+        if !visible && selectedTab == .search {
+            selectedTab = .home
+        }
+        isSearchTabVisible = visible
+    }
+
     func coordinator(for tab: NuvioAppTab) -> TabNavigationCoordinator {
         switch tab {
         case .home: return homeCoordinator
@@ -1174,6 +1194,10 @@ final class AppNavigationCoordinator: ObservableObject {
     func activateTab(named tabName: String) {
         guard let tab = NuvioAppTab.from(kotlinName: tabName) else { return }
         guard tab != .liveTv || isLiveTvTabVisible else {
+            selectedTab = .home
+            return
+        }
+        guard tab != .search || isSearchTabVisible else {
             selectedTab = .home
             return
         }
@@ -1251,7 +1275,12 @@ final class AppNavigationCoordinator: ObservableObject {
         let requestedTab = NuvioAppTab.from(kotlinName: route.preferredTabName)
             ?? tab(for: origin)
             ?? selectedTab
-        let targetTab = requestedTab == .liveTv && !isLiveTvTabVisible ? .home : requestedTab
+        let targetTab: NuvioAppTab
+        if (requestedTab == .liveTv && !isLiveTvTabVisible) || (requestedTab == .search && !isSearchTabVisible) {
+            targetTab = .home
+        } else {
+            targetTab = requestedTab
+        }
         let target = coordinator(for: targetTab)
         selectedTab = targetTab
         target.push(route, launchSingleTop: launchSingleTop)
@@ -2035,7 +2064,7 @@ struct NativeNavContentView: View {
                 }
             }
         }
-        .id(appCoordinator.isLiveTvTabVisible)
+        .id("\(appCoordinator.isLiveTvTabVisible)-\(appCoordinator.isSearchTabVisible)")
         .tint(Color(uiColor: iconStore.accentColor))
         .tabBarMinimizeBehavior(
             appCoordinator.tabBarBehavior == .autoHide ? .onScrollDown : .never
@@ -2095,6 +2124,13 @@ struct NativeNavContentView: View {
             )
         ) { _ in
             appCoordinator.reloadLiveTvTabVisibility()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: Notification.Name("NuvioSearchTabVisibilityDidChange")
+            )
+        ) { _ in
+            appCoordinator.reloadSearchTabVisibility()
         }
     }
 }
