@@ -46,6 +46,8 @@ object TmdbMetadataService {
 
     private val enrichmentCache = mutableMapOf<String, TmdbEnrichment>()
     private val enrichmentCacheLock = SynchronizedObject()
+    private val heroPosterCache = mutableMapOf<String, String?>()
+    private val heroPosterCacheLock = SynchronizedObject()
 
     internal fun clearEnrichmentCache() {
         synchronized(enrichmentCacheLock) { enrichmentCache.clear() }
@@ -973,6 +975,36 @@ object TmdbMetadataService {
         return updated
     }
 
+    /**
+     * Languageless hero key art, requested exactly like the reference client:
+     * `/{kind}/{id}/images?include_image_language=null`, filtered to posters with no
+     * spoken-language tag at a ~2:3 ratio, ranked by vote average. Used only by the
+     * home hero card; list posters and backdrops keep their normal sources.
+     */
+    private suspend fun fetchLanguagelessHeroPoster(
+        numericId: Int,
+        mediaType: String,
+    ): String? = withContext(Dispatchers.Default) {
+        val settings = TmdbSettingsRepository.snapshot()
+        if (!settings.useArtwork) return@withContext null
+        val cacheKey = "$numericId:$mediaType"
+        synchronized(heroPosterCacheLock) {
+            if (heroPosterCache.containsKey(cacheKey)) return@withContext heroPosterCache[cacheKey]
+        }
+        val images = runCatching {
+            fetch<TmdbImagesResponse>(
+                endpoint = "$mediaType/$numericId/images",
+                query = mapOf("include_image_language" to "null"),
+            )
+        }.getOrNull()
+        val posterUrl = buildImageUrl(images?.posters.orEmpty().selectHeroCardPosterPath(), "original")
+        synchronized(heroPosterCacheLock) {
+            heroPosterCache[cacheKey] = posterUrl
+            if (heroPosterCache.size > 256) heroPosterCache.remove(heroPosterCache.keys.first())
+        }
+        posterUrl
+    }
+
     private suspend fun fetchEnrichment(
         tmdbId: String,
         mediaType: String,
@@ -1066,6 +1098,9 @@ object TmdbMetadataService {
                     credits = credits.await(),
                 )
             }
+            val languagelessHeroPoster = async {
+                fetchLanguagelessHeroPoster(numericId = numericId, mediaType = mediaType)
+            }
             Quadruple(
                 first = details.await(),
                 second = credits.await(),
@@ -1077,13 +1112,14 @@ object TmdbMetadataService {
                     collectionItems = collectionItems.await(),
                     englishFallbackNames = englishFallbackNames.await(),
                 ),
-            )
+            ) to languagelessHeroPoster.await()
         }
 
-        val details = response.first ?: return@withContext null
-        val credits = response.second
-        val images = response.third
-        val englishFallbackNames = response.fourth.englishFallbackNames
+        val details = response.first.first ?: return@withContext null
+        val credits = response.first.second
+        val images = response.first.third
+        val englishFallbackNames = response.first.fourth.englishFallbackNames
+        val languagelessHeroPosterUrl = response.second
 
         val genres = details.genres.mapNotNull { it.name?.trim()?.takeIf(String::isNotBlank) }
         val description = details.overview?.trim()?.takeIf(String::isNotBlank)
@@ -1143,7 +1179,8 @@ object TmdbMetadataService {
                 "w500",
             ),
             heroPoster = buildImageUrl(
-                images?.posters.orEmpty().selectHeroCardPosterPath()
+                languagelessHeroPosterUrl
+                    ?: images?.posters.orEmpty().selectHeroCardPosterPath()
                     ?: originalImagePath(images?.posters, originalArtworkLanguage)
                     ?: details.posterPath,
                 "original",
@@ -1155,7 +1192,7 @@ object TmdbMetadataService {
             lastAirDate = lastAirDate,
             rating = details.voteAverage,
             runtimeMinutes = details.runtime ?: details.episodeRunTime.firstOrNull(),
-            ageRating = response.fourth.ageRating,
+            ageRating = response.first.fourth.ageRating,
             status = details.status?.trim()?.takeIf(String::isNotBlank),
             countries = details.productionCountries
                 .mapNotNull { it.iso31661?.trim()?.takeIf(String::isNotBlank) }
@@ -1166,9 +1203,9 @@ object TmdbMetadataService {
             productionCompanies = details.productionCompanies.mapNotNull { it.toMetaCompany() },
             networks = details.networks.mapNotNull { it.toMetaCompany() },
             collectionName = details.belongsToCollection?.name?.trim()?.takeIf(String::isNotBlank),
-            collectionItems = response.fourth.collectionItems,
-            moreLikeThis = response.fourth.moreLikeThis,
-            trailers = response.fourth.trailers,
+            collectionItems = response.first.fourth.collectionItems,
+            moreLikeThis = response.first.fourth.moreLikeThis,
+            trailers = response.first.fourth.trailers,
         )
 
         if (!enrichment.hasContent()) return@withContext null

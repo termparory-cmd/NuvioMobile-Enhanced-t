@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 
@@ -27,6 +29,13 @@ val LocalDynamicArtworkBackgroundColor = staticCompositionLocalOf<State<Color>?>
 private const val DOMINANT_BLEND_FRACTION = 0.42f
 
 private const val COLOR_TRANSITION_MS = 600
+
+// Reference page backdrop: the hero's colour at the top, black by mid-screen.
+// Matches the Swift reference HomeBackdrop gradient stops (0 → 0.25 → 0.55).
+private const val BACKDROP_TINT_STOP = 0f
+private const val BACKDROP_TINT_FADE_STOP = 0.25f
+private const val BACKDROP_TINT_FADE_ALPHA = 0.55f
+private const val BACKDROP_BLACK_STOP = 0.55f
 
 @Composable
 fun rememberDynamicArtworkBackgroundEnabled(): Boolean {
@@ -68,7 +77,19 @@ fun DynamicArtworkBackground(
         label = "dynamic_artwork_wash_color",
     )
 
-    Box(modifier = modifier.fillMaxSize().drawBehind { drawRect(washColor.value) }) {
+    Box(modifier = modifier.fillMaxSize().drawBehind {
+        drawRect(
+            Brush.verticalGradient(
+                colorStops = arrayOf(
+                    BACKDROP_TINT_STOP to washColor.value,
+                    BACKDROP_TINT_FADE_STOP to washColor.value.copy(alpha = BACKDROP_TINT_FADE_ALPHA),
+                    BACKDROP_BLACK_STOP to Color.Black,
+                ),
+            ),
+        )
+        // Below the gradient's black stop the page stays solid black.
+        drawRect(Color.Black, topLeft = Offset(0f, size.height * BACKDROP_BLACK_STOP))
+    }) {
         CompositionLocalProvider(
             LocalDynamicArtworkBackgroundActive provides true,
             LocalDynamicArtworkBackgroundColor provides washColor,

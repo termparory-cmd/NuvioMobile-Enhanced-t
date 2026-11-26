@@ -1,9 +1,11 @@
 package com.nuvio.app.features.home.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -37,10 +41,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Icon
@@ -61,9 +61,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -74,7 +80,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -84,15 +91,11 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.TrailerPlaybackMode
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.ui.LocalDynamicArtworkBackgroundColor
-import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.platformPhysicalTopInset
 import com.nuvio.app.core.ui.rememberDynamicArtworkBackgroundEnabled
 import com.nuvio.app.core.ui.PrefetchArtworkDominantColors
-import com.nuvio.app.core.ui.desaturate
 import com.nuvio.app.core.ui.focusedAlignment
-import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.rememberBackdropFocusState
-import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.revealAlpha
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
@@ -172,17 +175,19 @@ private object HomeHeroTrailerPlaybackPositionStore {
 
 internal const val TMDB_POSTER_HEIGHT_RATIO = 1.5f
 internal const val HERO_CARD_PORTRAIT_HEIGHT_RATIO = 1.4f
-internal const val HERO_CARD_SHADOW_DESATURATION = 0.9f
-internal val HERO_CARD_BOTTOM_SHADOW_HEIGHT = 34.dp
+internal const val HERO_CARD_POSTER_PARALLAX = 0.5f
+internal val HERO_CARD_CORNER_RADIUS = 12.dp
+internal val HERO_CARD_HORIZONTAL_PADDING = 25.6.dp
+internal val HERO_CARD_TOP_PADDING = 8.dp
+internal val HERO_CARD_CONTENT_HORIZONTAL_PADDING = 16.dp
+internal val HERO_CARD_CONTENT_VERTICAL_PADDING = 16.dp
+internal val HERO_CARD_CONTENT_SPACING = 12.dp
+internal val HERO_CARD_LOGO_MAX_HEIGHT = 100.dp
+internal const val HERO_CARD_LOGO_MAX_WIDTH_FRACTION = 0.92f
 
 internal const val BACKDROP_HEIGHT_RATIO = 9f / 16f
 
 private const val CARD_WIDE_MAX_VIEWPORT_FRACTION = 0.72f
-internal val HERO_CARD_HORIZONTAL_PADDING = 12.dp
-internal val HERO_CARD_TOP_PADDING = 0.dp
-
-internal fun heroCardCornerRadius(posterCardCornerRadiusDp: Int): Dp =
-    (posterCardCornerRadiusDp.coerceAtLeast(0) * 1.5f).dp
 
 internal fun heroUsesWideArtwork(
     maxWidth: Dp,
@@ -280,14 +285,9 @@ internal fun HomeHeroSection(
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
     val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val useNativeNavigation = LocalUseNativeNavigation.current
-    val posterCardStyle = rememberPosterCardStyleUiState()
     val heroFadeColorState = LocalDynamicArtworkBackgroundColor.current
     val themeBackground = MaterialTheme.colorScheme.background
-    val effectiveStretchPx: () -> Float = if (isCardStyle) {
-        { 0f }
-    } else {
-        stretchPx
-    }
+    val effectiveStretchPx: () -> Float = stretchPx
     val cardInsetModifier = if (isCardStyle) {
         Modifier.padding(
             top = HERO_CARD_TOP_PADDING,
@@ -298,18 +298,33 @@ internal fun HomeHeroSection(
         Modifier
     }
     val heroShape = if (isCardStyle) {
-        RoundedCornerShape(heroCardCornerRadius(posterCardStyle.cornerRadiusDp))
+        RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
     } else {
         RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
     }
-    val cardDepthModifier = if (isCardStyle) {
-        Modifier.nuvioCardDepth(
-            shape = heroShape,
-            surface = NuvioCardDepthSurface.Posters,
-        )
-    } else {
+    // Reference elevation style: soft black drop shadow + hairline white ring —
+    // deliberately different from the standard poster-card edge glow.
+    val cardElevationModifier = if (isCardStyle) {
         Modifier
+            .shadow(
+                elevation = 18.dp,
+                shape = heroShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.5f),
+                spotColor = Color.Black.copy(alpha = 0.5f),
+            )
+            .clip(heroShape)
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), heroShape)
+    } else {
+        Modifier.clip(heroShape)
     }
+    val cardClickInteraction = remember { MutableInteractionSource() }
+    val cardPressed by cardClickInteraction.collectIsPressedAsState()
+    val cardPressScale by animateFloatAsState(
+        targetValue = if (cardPressed) 0.99f else 1f,
+        animationSpec = spring(stiffness = 600f),
+        label = "hero_card_press_scale",
+    )
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -319,13 +334,20 @@ internal fun HomeHeroSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(cardInsetModifier)
+                .graphicsLayer {
+                    if (isCardStyle) {
+                        // Scroll bounce: the card pushes down with the pull and springs back.
+                        translationY = effectiveStretchPx()
+                        scaleX = cardPressScale
+                        scaleY = cardPressScale
+                    }
+                }
                 .homeHeroPagerGesture(
                     pagerState = pagerState,
                     itemCount = items.size,
                     coroutineScope = coroutineScope,
                 )
-                .clip(heroShape)
-                .then(cardDepthModifier),
+                .then(cardElevationModifier),
         ) {
             val baseLayout = homeHeroLayout(
                 maxWidthDp = maxWidth.value,
@@ -349,7 +371,13 @@ internal fun HomeHeroSection(
                     HomeHeroArtworkSource.BACKDROP
                 else -> HomeHeroArtworkSource.HERO_CARD_POSTER
             }
-            val artworkParallax = if (isCardStyle) 0f else HERO_BACKGROUND_PARALLAX
+            // CloudStream-style layered motion: the poster drifts at half the swipe speed
+            // while the shared logo/tags/buttons chrome stays put on screen.
+            val artworkParallax = if (isCardStyle) {
+                HERO_CARD_POSTER_PARALLAX
+            } else {
+                HERO_BACKGROUND_PARALLAX
+            }
             val artworkBaseScale = if (isCardStyle) 1f else HERO_BACKGROUND_SCALE
             val heroWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
             val heroHeightPx = with(LocalDensity.current) { layout.heroHeight.toPx() }
@@ -465,10 +493,17 @@ internal fun HomeHeroSection(
                 }
             }
 
+            // Card style bounces with a pure translation; bleed style stretches its height.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heroStretchHeight(layout.heroHeight, effectiveStretchPx),
+                    .then(
+                        if (isCardStyle) {
+                            Modifier.height(layout.heroHeight)
+                        } else {
+                            Modifier.heroStretchHeight(layout.heroHeight, effectiveStretchPx)
+                        },
+                    ),
             ) {
                 HorizontalPager(
                     state = pagerState,
@@ -487,7 +522,13 @@ internal fun HomeHeroSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(layout.heroHeight)
-                            .heroStretchZoom(effectiveStretchPx),
+                            .then(
+                                if (isCardStyle) {
+                                    Modifier
+                                } else {
+                                    Modifier.heroStretchZoom(effectiveStretchPx)
+                                },
+                            ),
                     ) {
                         visiblePages.forEach { layer ->
                             val item = items[layer.itemIndex]
@@ -574,65 +615,65 @@ internal fun HomeHeroSection(
                     }
 
                     if (isCardStyle) {
+                        // Reference internal shade: clear over the top 55%, then to 70% black.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .drawBehind {
-                                    val desaturatedFade = (heroFadeColorState?.value ?: themeBackground)
-                                        .desaturate(HERO_CARD_SHADOW_DESATURATION)
                                     drawRect(
                                         Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                desaturatedFade.copy(alpha = 0.14f),
-                                                desaturatedFade.copy(alpha = 0.48f),
-                                                desaturatedFade.copy(alpha = 0.84f),
-                                            ),
+                                            0.55f to Color.Transparent,
+                                            1f to Color.Black.copy(alpha = 0.7f),
                                         ),
                                     )
                                 }
-                                .clickable(enabled = onItemClick != null) {
+                                .clickable(
+                                    interactionSource = cardClickInteraction,
+                                    indication = null,
+                                    enabled = onItemClick != null,
+                                ) {
                                     onItemClick?.invoke(currentItem)
                                 },
                         )
 
+                        // Static chrome: the shared logo/tags/buttons overlay sits on top of the
+                        // artwork layers and never fades or moves while pages slide beneath it.
+                        val chromeWidth = if (layout.isTablet) layout.contentWidthFraction else 1f
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 16.dp),
-                            horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
+                                .padding(
+                                    horizontal = if (layout.isTablet) {
+                                        layout.contentHorizontalPadding
+                                    } else {
+                                        HERO_CARD_CONTENT_HORIZONTAL_PADDING
+                                    },
+                                    vertical = HERO_CARD_CONTENT_VERTICAL_PADDING,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(HERO_CARD_CONTENT_SPACING),
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(layout.contentWidthFraction)
+                                    .fillMaxWidth(chromeWidth)
                                     .widthIn(max = layout.contentMaxWidth),
-                                contentAlignment = Alignment.BottomStart,
                             ) {
-                                visiblePages.forEach { layer ->
-                                    val layerItem = items[layer.itemIndex]
-                                    key(layerItem.stableKey()) {
-                                        Box(
-                                            modifier = Modifier.graphicsLayer {
-                                                val offset = heroPageOffset(pagerState, layer.page)
-                                                val visibility = (1f - abs(offset)).coerceIn(0f, 1f)
-                                                alpha = ((visibility - 0.5f) * 2f).coerceIn(0f, 1f)
-                                            },
-                                        ) {
-                                            HeroContentBlock(
-                                                item = layerItem,
-                                                layout = layout,
-                                                showImdbRating = showImdbRating,
-                                                showMdbListRatings = showMdbListRatings,
-                                                isCardStyle = true,
-                                                isSaved = isItemSaved(layerItem),
-                                                onItemClick = onItemClick,
-                                                onPlayClick = onPlayClick,
-                                                onToggleSavedClick = onToggleSavedClick,
-                                            )
-                                        }
-                                    }
-                                }
+                                CardHeroTitleAndTags(
+                                    item = currentItem,
+                                    layout = layout,
+                                    glowColor = heroFadeColorState?.value,
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(chromeWidth)
+                                    .widthIn(max = layout.contentMaxWidth),
+                            ) {
+                                HeroCardActionButtons(
+                                    isSaved = isItemSaved(currentItem),
+                                    onPlayClick = { (onPlayClick ?: onItemClick)?.invoke(currentItem) },
+                                    onMyListClick = { onToggleSavedClick?.invoke(currentItem) },
+                                )
                             }
                         }
                     } else {
@@ -708,11 +749,7 @@ internal fun HomeHeroSection(
                                             layout = layout,
                                             showImdbRating = showImdbRating,
                                             showMdbListRatings = showMdbListRatings,
-                                            isCardStyle = false,
-                                            isSaved = false,
                                             onItemClick = onItemClick,
-                                            onPlayClick = null,
-                                            onToggleSavedClick = null,
                                         )
                                     }
                                     }
@@ -764,27 +801,6 @@ internal fun HomeHeroSection(
                     }
                 }
             }
-        }
-
-        if (isCardStyle) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(HERO_CARD_BOTTOM_SHADOW_HEIGHT)
-                    .drawBehind {
-                        val fade = heroFadeColorState?.value ?: themeBackground
-                        val desaturatedFade = fade.desaturate(HERO_CARD_SHADOW_DESATURATION)
-                        drawRect(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    desaturatedFade.copy(alpha = 0.35f),
-                                    desaturatedFade.copy(alpha = 0.72f),
-                                    fade.copy(alpha = 1f),
-                                ),
-                            ),
-                        )
-                    },
-            )
         }
     }
 }
@@ -860,7 +876,6 @@ internal fun HomeHeroReservedSpace(
     heroStyle: HomeHeroStyle = HomeHeroStyle.FULL_BLEED,
 ) {
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
-    val posterCardStyle = rememberPosterCardStyleUiState()
 
     Column(modifier = modifier.fillMaxWidth()) {
         BoxWithConstraints(
@@ -879,7 +894,7 @@ internal fun HomeHeroReservedSpace(
                 )
                 .clip(
                     if (isCardStyle) {
-                        RoundedCornerShape(heroCardCornerRadius(posterCardStyle.cornerRadiusDp))
+                        RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
                     } else {
                         RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                     },
@@ -906,10 +921,6 @@ internal fun HomeHeroReservedSpace(
                     .height(heroHeight),
             )
         }
-
-        if (isCardStyle) {
-            Spacer(modifier = Modifier.height(HERO_CARD_BOTTOM_SHADOW_HEIGHT))
-        }
     }
 }
 
@@ -919,22 +930,17 @@ private fun HeroContentBlock(
     layout: HomeHeroLayout,
     showImdbRating: Boolean,
     showMdbListRatings: Boolean,
-    isCardStyle: Boolean,
-    isSaved: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
-    onPlayClick: ((MetaPreview) -> Unit)?,
-    onToggleSavedClick: ((MetaPreview) -> Unit)?,
 ) {
     var logoLoadError by remember(item.type, item.id, item.logo) {
         mutableStateOf(false)
     }
     val logoUrl = item.logo?.takeIf { it.isNotBlank() }
-    val scale = if (isCardStyle) 0.9f else 1f
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (isCardStyle) Modifier else Modifier.animateContentSize()),
+            .animateContentSize(),
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         if (logoUrl != null && !logoLoadError) {
@@ -942,7 +948,7 @@ private fun HeroContentBlock(
                 model = logoUrl,
                 contentDescription = item.name,
                 modifier = Modifier
-                    .fillMaxWidth(layout.logoWidthFraction * scale)
+                    .fillMaxWidth(layout.logoWidthFraction)
                     .aspectRatio(2.6f)
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
@@ -952,15 +958,6 @@ private fun HeroContentBlock(
                 onError = { logoLoadError = true },
             )
         } else {
-            val baseTitleStyle = MaterialTheme.typography.displaySmall
-            val titleStyle = if (scale == 1f) {
-                baseTitleStyle
-            } else {
-                baseTitleStyle.copy(
-                    fontSize = if (baseTitleStyle.fontSize.isSpecified) baseTitleStyle.fontSize * scale else baseTitleStyle.fontSize,
-                    lineHeight = if (baseTitleStyle.lineHeight.isSpecified) baseTitleStyle.lineHeight * scale else baseTitleStyle.lineHeight,
-                )
-            }
             Text(
                 text = item.name,
                 modifier = Modifier
@@ -968,7 +965,7 @@ private fun HeroContentBlock(
                     .clickable(enabled = onItemClick != null) {
                         onItemClick?.invoke(item)
                     },
-                style = titleStyle,
+                style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Black,
                 textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
@@ -1007,102 +1004,295 @@ private fun HeroContentBlock(
             }
         }
 
-        Spacer(modifier = Modifier.height(if (isCardStyle) 6.dp else 12.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         HomeHeroMetaRows(
             item = metaItem,
             isTablet = layout.isTablet,
             showImdbRating = showImdbRating,
             showMdbListRatings = showMdbListRatings,
-            scale = scale,
-            showRatingsRow = !isCardStyle,
         )
 
-        if (isCardStyle) {
-            Spacer(modifier = Modifier.height(6.dp))
-            HeroCardActionButtons(
-                isSaved = isSaved,
-                onPlayClick = { (onPlayClick ?: onItemClick)?.invoke(item) },
-                onMyListClick = { onToggleSavedClick?.invoke(item) },
+        val synopsis = (item.description ?: details?.description)?.trim()?.takeIf { it.isNotBlank() }
+        if (synopsis != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = synopsis,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-        } else {
-            val synopsis = (item.description ?: details?.description)?.trim()?.takeIf { it.isNotBlank() }
-            if (synopsis != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = synopsis,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
-                    textAlign = if (layout.isTablet) TextAlign.Start else TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }
 
+/**
+ * Logo (title) + tag line for the hero card, per the reference design: the logo sits
+ * above the tags, both centered, with a graceful fade/scale entrance as they appear.
+ * Buttons are intentionally excluded — they render once, statically, below this block.
+ */
+@Composable
+private fun CardHeroTitleAndTags(
+    item: MetaPreview,
+    layout: HomeHeroLayout,
+    glowColor: Color?,
+) {
+    // Fill genre gaps from cached details so the tag line stays populated.
+    val detailsState = remember(item.type, item.id) {
+        mutableStateOf(MetaDetailsRepository.peek(item.type, item.id))
+    }
+    LaunchedEffect(item.type, item.id) {
+        if (detailsState.value == null) {
+            detailsState.value = runCatching {
+                MetaDetailsRepository.fetch(item.type, item.id)
+            }.getOrNull()
+        }
+    }
+    val tags = (item.genres.ifEmpty { detailsState.value?.genres.orEmpty() })
+        .asSequence()
+        .mapNotNull { genre -> genre.trim().takeIf(String::isNotBlank) }
+        .distinct()
+        .take(3)
+        .joinToString(" • ")
+
+    // Graceful entrance: the logo and tags fade/scale in when a new hero appears.
+    val reveal = remember(item.stableKey()) { Animatable(0f) }
+    LaunchedEffect(item.stableKey()) {
+        reveal.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        )
+    }
+
+    var logoLoadError by remember(item.type, item.id, item.logo) {
+        mutableStateOf(false)
+    }
+    val logoUrl = item.logo?.takeIf { it.isNotBlank() }
+    val titleAlignment = if (layout.isTablet) TextAlign.Start else TextAlign.Center
+    val density = LocalDensity.current
+    val glow = (glowColor ?: Color.Black).copy(alpha = 0.9f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = reveal.value
+                val scale = 0.96f + 0.04f * reveal.value
+                scaleX = scale
+                scaleY = scale
+                translationY = 6.dp.toPx() * (1f - reveal.value)
+            },
+        horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(HERO_CARD_CONTENT_SPACING),
+    ) {
+        if (logoUrl != null && !logoLoadError) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = item.name,
+                modifier = Modifier
+                    .fillMaxWidth(HERO_CARD_LOGO_MAX_WIDTH_FRACTION)
+                    .heightIn(max = HERO_CARD_LOGO_MAX_HEIGHT),
+                contentScale = ContentScale.Fit,
+                onError = { logoLoadError = true },
+            )
+        } else {
+            Text(
+                text = item.name.uppercase(),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontSize = 36.sp,
+                    lineHeight = 40.sp,
+                    letterSpacing = 0.06.em,
+                    shadow = Shadow(
+                        color = glow,
+                        offset = Offset.Zero,
+                        blurRadius = with(density) { 14.dp.toPx() },
+                    ),
+                ),
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                textAlign = titleAlignment,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (tags.isNotBlank()) {
+            Text(
+                text = tags,
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        offset = Offset(0f, with(density) { 1.dp.toPx() }),
+                        blurRadius = with(density) { 3.dp.toPx() },
+                    ),
+                ),
+                color = Color.White,
+                fontWeight = FontWeight.Medium,
+                textAlign = titleAlignment,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Exact play/plus/check glyphs from the reference assets (24dp viewBox). */
+private val HeroCardPlayIcon: ImageVector = ImageVector.Builder(
+    name = "HeroCardPlay",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).path(
+    fill = SolidColor(Color.Black),
+) {
+    moveTo(8f, 5f)
+    verticalLineToRelative(14f)
+    lineToRelative(11f, -7f)
+    close()
+}.build()
+
+private val HeroCardAddIcon: ImageVector = ImageVector.Builder(
+    name = "HeroCardAdd",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).path(
+    fill = SolidColor(Color.White),
+) {
+    moveTo(11f, 5f)
+    horizontalLineToRelative(2f)
+    verticalLineToRelative(6f)
+    horizontalLineToRelative(6f)
+    verticalLineToRelative(2f)
+    horizontalLineToRelative(-6f)
+    verticalLineToRelative(6f)
+    horizontalLineToRelative(-2f)
+    verticalLineToRelative(-6f)
+    horizontalLineTo(5f)
+    verticalLineToRelative(-2f)
+    horizontalLineToRelative(6f)
+    close()
+}.build()
+
+private val HeroCardCheckIcon: ImageVector = ImageVector.Builder(
+    name = "HeroCardCheck",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).path(
+    fill = SolidColor(Color.White),
+) {
+    moveTo(9f, 16.2f)
+    lineToRelative(-3.5f, -3.5f)
+    lineTo(4f, 14.2f)
+    lineTo(9f, 19.2f)
+    lineTo(20f, 8.2f)
+    lineToRelative(-1.4f, -1.4f)
+    close()
+}.build()
+
+/** Reference "Play"/"My List" buttons: 44dp tall, 5dp radius, white vs. translucent grey. */
 @Composable
 private fun HeroCardActionButtons(
     isSaved: Boolean,
     onPlayClick: () -> Unit,
     onMyListClick: () -> Unit,
 ) {
-    val buttonShape = RoundedCornerShape(8.dp)
+    val buttonShape = RoundedCornerShape(5.dp)
+    val buttonTextStyle = MaterialTheme.typography.labelLarge.copy(
+        fontSize = 17.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val playInteraction = remember { MutableInteractionSource() }
+        val playPressed by playInteraction.collectIsPressedAsState()
+        val playScale by animateFloatAsState(
+            targetValue = if (playPressed) 0.96f else 1f,
+            animationSpec = spring(stiffness = 600f),
+            label = "hero_play_press_scale",
+        )
         Row(
             modifier = Modifier
+                .graphicsLayer {
+                    scaleX = playScale
+                    scaleY = playScale
+                    alpha = if (playPressed) 0.8f else 1f
+                }
                 .weight(1f)
-                .height(42.dp)
+                .height(44.dp)
                 .clip(buttonShape)
                 .background(Color.White)
-                .clickable(onClick = onPlayClick),
+                .clickable(
+                    interactionSource = playInteraction,
+                    indication = null,
+                    onClick = onPlayClick,
+                ),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Filled.PlayArrow,
+                imageVector = HeroCardPlayIcon,
                 contentDescription = null,
-                tint = Color(0xFF111111),
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(32.dp),
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = stringResource(Res.string.action_play),
-                style = MaterialTheme.typography.labelLarge,
-                color = Color(0xFF111111),
-                fontWeight = FontWeight.Bold,
+                style = buttonTextStyle,
+                color = Color.Black,
                 maxLines = 1,
             )
         }
 
+        val listInteraction = remember { MutableInteractionSource() }
+        val listPressed by listInteraction.collectIsPressedAsState()
+        val listScale by animateFloatAsState(
+            targetValue = if (listPressed) 0.96f else 1f,
+            animationSpec = spring(stiffness = 600f),
+            label = "hero_list_press_scale",
+        )
         Row(
             modifier = Modifier
+                .graphicsLayer {
+                    scaleX = listScale
+                    scaleY = listScale
+                    alpha = if (listPressed) 0.8f else 1f
+                }
                 .weight(1f)
-                .height(42.dp)
+                .height(44.dp)
                 .clip(buttonShape)
-                .background(Color(0xFF222222).copy(alpha = 0.88f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), buttonShape)
-                .clickable(onClick = onMyListClick),
+                .background(Color(0xFF6D6D6E).copy(alpha = 0.72f))
+                .clickable(
+                    interactionSource = listInteraction,
+                    indication = null,
+                    onClick = onMyListClick,
+                ),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (isSaved) Icons.Rounded.Check else Icons.Rounded.Add,
+                imageVector = if (isSaved) HeroCardCheckIcon else HeroCardAddIcon,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(32.dp),
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = stringResource(Res.string.hero_action_my_list),
-                style = MaterialTheme.typography.labelLarge,
+                style = buttonTextStyle,
                 color = Color.White,
-                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
         }

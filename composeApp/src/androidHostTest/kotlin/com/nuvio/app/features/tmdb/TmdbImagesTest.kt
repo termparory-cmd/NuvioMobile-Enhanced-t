@@ -6,7 +6,7 @@ import kotlin.test.assertNull
 
 class TmdbImagesTest {
     @Test
-    fun selectHeroCardPosterPathPrefersLanguageNeutralThreeTwoHighestResolutionPoster() {
+    fun selectHeroCardPosterPathRanksLanguagelessThreeTwoPostersByVoteAverage() {
         val posters = listOf(
             TmdbImage(
                 filePath = "/localized_en.jpg",
@@ -42,7 +42,8 @@ class TmdbImagesTest {
             ),
         )
 
-        assertEquals("/neutral_high_res.jpg", posters.selectHeroCardPosterPath())
+        // Languageless ~2:3 posters only, ranked by vote average (include_image_language=null spec).
+        assertEquals("/neutral_low_res.jpg", posters.selectHeroCardPosterPath())
     }
 
     @Test

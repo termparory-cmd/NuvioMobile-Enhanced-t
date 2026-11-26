@@ -71,7 +71,6 @@ internal fun HomeSkeletonHero(
 ) {
     val brush = rememberHomeSkeletonBrush()
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
-    val posterCardStyle = rememberPosterCardStyleUiState()
 
     Column(modifier = modifier.fillMaxWidth()) {
         BoxWithConstraints(
@@ -90,7 +89,7 @@ internal fun HomeSkeletonHero(
                 )
                 .clip(
                     if (isCardStyle) {
-                        RoundedCornerShape(heroCardCornerRadius(posterCardStyle.cornerRadiusDp))
+                        RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
                     } else {
                         RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                     },
@@ -197,15 +196,15 @@ internal fun HomeSkeletonHero(
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(42.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(5.dp))
                                         .background(brush),
                                 )
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(42.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(5.dp))
                                         .background(brush),
                                 )
                             }
@@ -240,9 +239,6 @@ internal fun HomeSkeletonHero(
                     }
                 }
             }
-        }
-        if (isCardStyle) {
-            Spacer(modifier = Modifier.height(HERO_CARD_BOTTOM_SHADOW_HEIGHT))
         }
     }
 }

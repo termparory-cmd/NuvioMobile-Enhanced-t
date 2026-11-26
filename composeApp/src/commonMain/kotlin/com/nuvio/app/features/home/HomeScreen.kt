@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +22,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1062,13 +1065,27 @@ fun HomeScreen(
             }
         }
 
-        val heroStretchEnabled = showHeroSlot && !isCardHeroStyle
+        val heroStretchEnabled = showHeroSlot
         val heroStretchState = rememberHeroStretchState(homeListState)
         val heroStretchModifier = if (heroStretchEnabled) {
             Modifier.nestedScroll(heroStretchState.nestedScrollConnection)
         } else {
             Modifier
         }
+        // Edge-vanish scrim for the pinned header: invisible at the very top of the list,
+        // fading in over the first 80dp of scroll (reference behavior).
+        val headerScrimTravelPx = with(LocalDensity.current) { 80.dp.toPx() }
+        val headerScrimFraction = remember(homeListState, headerScrimTravelPx) {
+            derivedStateOf {
+                if (homeListState.firstVisibleItemIndex > 0) {
+                    1f
+                } else {
+                    (homeListState.firstVisibleItemScrollOffset / headerScrimTravelPx).coerceIn(0f, 1f)
+                }
+            }
+        }
+        val showsChipActive = tvShowsEnabled && !moviesEnabled
+        val moviesChipActive = !tvShowsEnabled && moviesEnabled
 
         var activeHeroArtworkUrl by remember { mutableStateOf<String?>(null) }
         val onActiveHeroArtworkChange: (String?) -> Unit = remember {
@@ -1078,33 +1095,8 @@ fun HomeScreen(
             ?.takeIf { it.isNotBlank() }
             ?: stringResource(Res.string.compose_nav_profile)
 
-        DynamicArtworkBackground(artworkUrl = activeHeroArtworkUrl) {
-            NuvioScreen(
-                modifier = Modifier.fillMaxSize().then(heroStretchModifier),
-                horizontalPadding = 0.dp,
-                topPadding = if (showHeroSlot || isCardHeroStyle) 0.dp else null,
-                listState = homeListState,
-                autoHidesNativeTabBar = true,
-            ) {
-                if (isCardHeroStyle) {
-                    item(key = "home_card_header", contentType = "home_card_header") {
-                        HomeCardHeader(
-                            profileName = cardHeaderProfileName,
-                            filterState = activeFilterState,
-                            onToggleTvShows = { tvShowsEnabled = !tvShowsEnabled },
-                            onToggleMovies = { moviesEnabled = !moviesEnabled },
-                            onSelectCategory = { nextCategory ->
-                                if (activeFilterState.isCategoriesEnabled) {
-                                    selectedCategoryName = nextCategory.name
-                                }
-                            },
-                            onSearchClick = { onSearchClick?.invoke() },
-                            modifier = Modifier.nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current),
-                        )
-                    }
-                }
-
-                if (showHeroSlot) {
+        val homeListContent: LazyListScope.() -> Unit = {
+            if (showHeroSlot) {
                     item(key = "home_hero", contentType = "hero") {
                         val homeHeroState = rememberHomeHeroState(filteredHeroItems)
                         Crossfade(
@@ -1128,11 +1120,7 @@ fun HomeScreen(
                                     mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
                                     heroStyle = homeSettingsUiState.heroStyle,
                                     listState = homeListState,
-                                    stretchPx = if (isCardHeroStyle) {
-                                        { 0f }
-                                    } else {
-                                        { heroStretchState.stretchPx }
-                                    },
+                                    stretchPx = { heroStretchState.stretchPx },
                                     // animateCollectionGifs doubles as "Home is the visible route" — it already
                                     // turns false whenever a screen (like Details) is pushed on top of it, which
                                     // is also exactly when hero trailer playback must stop, not just pause.
@@ -1330,6 +1318,59 @@ fun HomeScreen(
                         }
                     }
                 }
+        }
+
+        DynamicArtworkBackground(artworkUrl = activeHeroArtworkUrl) {
+            if (isCardHeroStyle) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    HomeCardHeader(
+                        profileName = cardHeaderProfileName,
+                        filterState = activeFilterState,
+                        onShowsClick = {
+                            if (showsChipActive) {
+                                tvShowsEnabled = true
+                                moviesEnabled = true
+                            } else {
+                                tvShowsEnabled = true
+                                moviesEnabled = false
+                            }
+                        },
+                        onMoviesClick = {
+                            if (moviesChipActive) {
+                                tvShowsEnabled = true
+                                moviesEnabled = true
+                            } else {
+                                tvShowsEnabled = false
+                                moviesEnabled = true
+                            }
+                        },
+                        onSelectCategory = { nextCategory ->
+                            if (activeFilterState.isCategoriesEnabled) {
+                                selectedCategoryName = nextCategory.name
+                            }
+                        },
+                        onSearchClick = { onSearchClick?.invoke() },
+                        scrimFraction = { headerScrimFraction.value },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    NuvioScreen(
+                        modifier = Modifier.weight(1f).then(heroStretchModifier),
+                        horizontalPadding = 0.dp,
+                        topPadding = 0.dp,
+                        listState = homeListState,
+                        autoHidesNativeTabBar = true,
+                        content = homeListContent,
+                    )
+                }
+            } else {
+                NuvioScreen(
+                    modifier = Modifier.fillMaxSize().then(heroStretchModifier),
+                    horizontalPadding = 0.dp,
+                    topPadding = if (showHeroSlot) 0.dp else null,
+                    listState = homeListState,
+                    autoHidesNativeTabBar = true,
+                    content = homeListContent,
+                )
             }
         }
     }

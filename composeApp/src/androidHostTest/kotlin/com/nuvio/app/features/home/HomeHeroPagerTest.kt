@@ -18,10 +18,10 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.desaturate
+import com.nuvio.app.features.home.components.HERO_CARD_CORNER_RADIUS
 import com.nuvio.app.features.home.components.HERO_CARD_PORTRAIT_HEIGHT_RATIO
 import com.nuvio.app.features.home.components.HomeHeroSection
 import com.nuvio.app.features.home.components.cardHeroHeight
-import com.nuvio.app.features.home.components.heroCardCornerRadius
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -97,9 +97,8 @@ class HomeHeroPagerTest {
     }
 
     @Test
-    fun cardHeroGeometryAndShadowDesaturationMatchSpec() {
-        assertEquals(18.dp, heroCardCornerRadius(12))
-        assertEquals(0.dp, heroCardCornerRadius(0))
+    fun cardHeroGeometryMatchesReferenceSpec() {
+        assertEquals(12.dp, HERO_CARD_CORNER_RADIUS)
         assertEquals(1.4f, HERO_CARD_PORTRAIT_HEIGHT_RATIO)
         assertEquals(
             366.dp * 1.4f,
