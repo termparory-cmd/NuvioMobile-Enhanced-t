@@ -117,10 +117,10 @@ internal fun LazyListScope.layoutSettingsContent(
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_appearance_gradient_background),
-                    description = stringResource(
-                        Res.string.settings_appearance_gradient_background_description,
-                    ),
+                    // Hardcoded labels: the compose resource generator intermittently
+                    // drops newly added keys from the generated Res class on CI.
+                    title = "Gradient",
+                    description = "Fade the dynamic background from the tint color to the base color.",
                     checked = gradientBackgroundEnabled,
                     isTablet = isTablet,
                     onCheckedChange = ThemeSettingsRepository::setGradientBackground,
