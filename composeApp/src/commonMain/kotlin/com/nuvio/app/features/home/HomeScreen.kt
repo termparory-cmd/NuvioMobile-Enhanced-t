@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -119,6 +120,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
+import com.nuvio.app.features.home.components.HERO_CARD_BOTTOM_SPACING
 import com.nuvio.app.features.home.components.HomeCardHeader
 import com.nuvio.app.features.home.components.continueWatchingHeroViewportReserveHeight
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
@@ -1102,7 +1104,15 @@ fun HomeScreen(
                         val homeHeroState = rememberHomeHeroState(filteredHeroItems)
                         Crossfade(
                             targetState = showHeroSkeleton,
-                            modifier = Modifier.nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current),
+                            modifier = Modifier
+                                .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
+                                .then(
+                                    if (isCardHeroStyle) {
+                                        Modifier.padding(bottom = HERO_CARD_BOTTOM_SPACING)
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                             animationSpec = tween(320),
                             label = "HomeHeroLoading",
                         ) { isLoading ->
@@ -1355,7 +1365,11 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     NuvioScreen(
-                        modifier = Modifier.weight(1f).then(heroStretchModifier),
+                        modifier = Modifier
+                            .weight(1f)
+                            // Scroll bounce: everything below the top bar pushes down and springs back.
+                            .graphicsLayer { translationY = heroStretchState.stretchPx }
+                            .then(heroStretchModifier),
                         horizontalPadding = 0.dp,
                         topPadding = 0.dp,
                         listState = homeListState,

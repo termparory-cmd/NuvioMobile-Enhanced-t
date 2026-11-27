@@ -315,7 +315,7 @@ object HomeRepository {
                 .filter { definition -> preferences[definition.key]?.heroSourceEnabled != false }
                 .mapNotNull { definition -> cachedSections[definition.cacheKey] }
                 .map { section -> section.withPosterOverlay().withReleaseFilter() }
-                .flatMap { section -> section.items }
+                .flatMap { section -> section.items.take(HOME_HERO_ITEMS_PER_SOURCE) }
                 .distinctBy { item -> "${item.type}:${item.id}" }
         } else {
             emptyList()
@@ -585,7 +585,8 @@ object HomeRepository {
         source.catalogRouteKey()
 }
 
-private const val HOME_HERO_ITEM_LIMIT = 8
+private const val HOME_HERO_ITEM_LIMIT = 16
+private const val HOME_HERO_ITEMS_PER_SOURCE = 4
 private const val HOME_COLLECTION_HERO_SOURCE_LIMIT = 6
 private const val HOME_COLLECTION_HERO_SOURCE_ITEM_LIMIT = 8
 private const val HOME_CATALOG_MAX_CONCURRENT_FETCHES = 6

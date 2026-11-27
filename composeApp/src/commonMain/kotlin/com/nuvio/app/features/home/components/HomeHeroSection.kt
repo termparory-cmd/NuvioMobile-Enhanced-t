@@ -59,12 +59,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -75,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -182,6 +185,7 @@ internal val HERO_CARD_TOP_PADDING = 8.dp
 internal val HERO_CARD_CONTENT_HORIZONTAL_PADDING = 16.dp
 internal val HERO_CARD_CONTENT_VERTICAL_PADDING = 16.dp
 internal val HERO_CARD_CONTENT_SPACING = 12.dp
+internal val HERO_CARD_BOTTOM_SPACING = 12.dp
 internal val HERO_CARD_LOGO_MAX_HEIGHT = 100.dp
 internal const val HERO_CARD_LOGO_MAX_WIDTH_FRACTION = 0.92f
 
@@ -307,11 +311,11 @@ internal fun HomeHeroSection(
     val cardElevationModifier = if (isCardStyle) {
         Modifier
             .shadow(
-                elevation = 18.dp,
+                elevation = 28.dp,
                 shape = heroShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.5f),
-                spotColor = Color.Black.copy(alpha = 0.5f),
+                ambientColor = Color.Black.copy(alpha = 0.6f),
+                spotColor = Color.Black.copy(alpha = 0.6f),
             )
             .clip(heroShape)
             .border(0.5.dp, Color.White.copy(alpha = 0.12f), heroShape)
@@ -336,8 +340,7 @@ internal fun HomeHeroSection(
                 .then(cardInsetModifier)
                 .graphicsLayer {
                     if (isCardStyle) {
-                        // Scroll bounce: the card pushes down with the pull and springs back.
-                        translationY = effectiveStretchPx()
+                        // Press feedback only — the scroll bounce now moves the whole list.
                         scaleX = cardPressScale
                         scaleY = cardPressScale
                     }
@@ -615,15 +618,15 @@ internal fun HomeHeroSection(
                     }
 
                     if (isCardStyle) {
-                        // Reference internal shade: clear over the top 55%, then to 70% black.
+                        // Strong internal shade: clear over the top 45%, then to 85% black.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .drawBehind {
                                     drawRect(
                                         Brush.verticalGradient(
-                                            0.55f to Color.Transparent,
-                                            1f to Color.Black.copy(alpha = 0.7f),
+                                            0.45f to Color.Transparent,
+                                            1f to Color.Black.copy(alpha = 0.85f),
                                         ),
                                     )
                                 }
@@ -1062,7 +1065,7 @@ private fun CardHeroTitleAndTags(
     LaunchedEffect(item.stableKey()) {
         reveal.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         )
     }
 
@@ -1088,15 +1091,32 @@ private fun CardHeroTitleAndTags(
         verticalArrangement = Arrangement.spacedBy(HERO_CARD_CONTENT_SPACING),
     ) {
         if (logoUrl != null && !logoLoadError) {
-            AsyncImage(
-                model = logoUrl,
-                contentDescription = item.name,
-                modifier = Modifier
-                    .fillMaxWidth(HERO_CARD_LOGO_MAX_WIDTH_FRACTION)
-                    .heightIn(max = HERO_CARD_LOGO_MAX_HEIGHT),
-                contentScale = ContentScale.Fit,
-                onError = { logoLoadError = true },
-            )
+            Box {
+                // Reference drop-shadow: 0 2px 8px rgba(0,0,0,.6) behind the logo mark.
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth(HERO_CARD_LOGO_MAX_WIDTH_FRACTION)
+                        .heightIn(max = HERO_CARD_LOGO_MAX_HEIGHT)
+                        .blur(8.dp)
+                        .graphicsLayer {
+                            alpha = 0.6f
+                            translationY = 2.dp.toPx()
+                        },
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Color.Black),
+                )
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = item.name,
+                    modifier = Modifier
+                        .fillMaxWidth(HERO_CARD_LOGO_MAX_WIDTH_FRACTION)
+                        .heightIn(max = HERO_CARD_LOGO_MAX_HEIGHT),
+                    contentScale = ContentScale.Fit,
+                    onError = { logoLoadError = true },
+                )
+            }
         } else {
             Text(
                 text = item.name.uppercase(),
@@ -1123,6 +1143,8 @@ private fun CardHeroTitleAndTags(
                 text = tags,
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Default,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
                     lineHeight = 18.sp,
                     shadow = Shadow(
@@ -1246,6 +1268,7 @@ private fun HeroCardActionButtons(
             Icon(
                 imageVector = HeroCardPlayIcon,
                 contentDescription = null,
+                tint = Color.Black,
                 modifier = Modifier.size(32.dp),
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -1274,7 +1297,7 @@ private fun HeroCardActionButtons(
                 .weight(1f)
                 .height(44.dp)
                 .clip(buttonShape)
-                .background(Color(0xFF6D6D6E).copy(alpha = 0.72f))
+                .background(Color(0xFF676767).copy(alpha = 0.8f))
                 .clickable(
                     interactionSource = listInteraction,
                     indication = null,
@@ -1286,6 +1309,7 @@ private fun HeroCardActionButtons(
             Icon(
                 imageVector = if (isSaved) HeroCardCheckIcon else HeroCardAddIcon,
                 contentDescription = null,
+                tint = Color.White,
                 modifier = Modifier.size(32.dp),
             )
             Spacer(modifier = Modifier.width(4.dp))

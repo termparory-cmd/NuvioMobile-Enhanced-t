@@ -13,7 +13,9 @@ object TmdbSettingsRepository {
 
     private var hasLoaded = false
 
-    private var enabled = false
+    // Auto-enabled when a TMDB key is baked into the build; the user's explicit
+    // off toggle (persisted) always wins.
+    private var enabled = TmdbConfig.API_KEY.isNotBlank()
     private var apiKey = ""
     private var language = "en"
     private var useTrailers = true
@@ -187,7 +189,7 @@ object TmdbSettingsRepository {
         val previousApiKey = apiKey
         val previousUseEpisodeRatings = useEpisodeRatings
         hasLoaded = true
-        enabled = TmdbSettingsStorage.loadEnabled() ?: false
+        enabled = TmdbSettingsStorage.loadEnabled() ?: TmdbConfig.API_KEY.isNotBlank()
         apiKey = TmdbSettingsStorage.loadApiKey()?.trim().orEmpty()
         val storedLanguage = TmdbSettingsStorage.loadLanguage()
         language = if (storedLanguage == null) "en" else normalizeLanguage(storedLanguage)

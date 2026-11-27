@@ -326,7 +326,14 @@ val generateRuntimeConfigs = tasks.register<GenerateRuntimeConfigsTask>("generat
     supabaseAnonKey.set(runtimeConfigValue("NUVIO_SUPABASE_ANON_KEY"))
     supabaseFallbackUrl.set(runtimeConfigValue("NUVIO_SUPABASE_FALLBACK_URL"))
     sentryDsn.set(runtimeConfigValue("SENTRY_DSN"))
-    tmdbApiKey.set(runtimeConfigValue("TMDB_API_KEY"))
+    // Default TMDB v4 read-access token so TMDB metadata works out of the box.
+    // Override with TMDB_API_KEY in local.properties or the environment.
+    tmdbApiKey.set(
+        runtimeConfigValue(
+            "TMDB_API_KEY",
+            fallback = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlZTdiYjBmYmQwYWRiYjIwMzUyYmE4YTc2YmJmMjI0YyIsIm5iZiI6MTc5MTM0MjU2Ni42OTcsInN1YiI6IjZhYzViN2U2ZmEwZmJkYjU0Zjk1ZGQ5MCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.P6s_JIU2TyOuMXX4BqIMUZLVH2CXSvfKSypMZXeXZa0",
+        ),
+    )
     sentryEnvironment.set(
         when {
             requestedGradleTasks.any { "benchmark" in it } -> "benchmark"

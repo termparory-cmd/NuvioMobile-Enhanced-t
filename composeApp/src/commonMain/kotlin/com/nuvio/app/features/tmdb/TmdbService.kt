@@ -3,6 +3,7 @@ package com.nuvio.app.features.tmdb
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.logging.InAppLogger
 import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
@@ -120,7 +121,7 @@ object TmdbService {
         val url = buildTmdbUrl(endpoint = endpoint, apiKey = apiKey, query = query)
         InAppLogger.info("Metadata/TMDB", "GET endpoint=$endpoint url=${InAppLogger.redactUrl(url)}")
         return runCatching {
-            val payload = httpGetText(url)
+            val payload = tmdbHttpGet(url, apiKey)
             InAppLogger.info("Metadata/TMDB", "GET endpoint=$endpoint ok chars=${payload.length}")
             json.decodeFromString<T>(payload)
         }.onFailure { error ->
@@ -137,12 +138,31 @@ object TmdbService {
         }
 }
 
+/** TMDB v4 read-access tokens (JWTs) travel as Bearer headers, not api_key params. */
+internal fun isTmdbV4Token(apiKey: String): Boolean = apiKey.startsWith("eyJ")
+
+internal suspend fun tmdbHttpGet(url: String, apiKey: String): String =
+    if (isTmdbV4Token(apiKey)) {
+        httpGetTextWithHeaders(
+            url = url,
+            headers = mapOf(
+                "Authorization" to "Bearer $apiKey",
+                "accept" to "application/json",
+            ),
+        )
+    } else {
+        httpGetText(url)
+    }
+
 internal fun buildTmdbUrl(
     endpoint: String,
     apiKey: String,
     query: Map<String, String> = emptyMap(),
 ): String {
-    val params = linkedMapOf("api_key" to apiKey)
+    val params = linkedMapOf<String, String>()
+    if (!isTmdbV4Token(apiKey)) {
+        params["api_key"] = apiKey
+    }
     query.forEach { (key, value) ->
         if (value.isNotBlank()) {
             params[key] = value

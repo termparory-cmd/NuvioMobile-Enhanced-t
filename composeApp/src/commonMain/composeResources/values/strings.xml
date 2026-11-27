@@ -750,6 +750,8 @@
     <string name="settings_appearance_amoled_black">AMOLED Black</string>
     <string name="settings_appearance_amoled_description">Use pure black backgrounds for OLED screens.</string>
     <string name="settings_appearance_dynamic_artwork_background">Dynamic background color</string>
+    <string name="settings_appearance_gradient_background">Gradient</string>
+    <string name="settings_appearance_gradient_background_description">Blend the dynamic background into a full gradient that fades from the tint color to the base color.</string>
     <string name="settings_appearance_catalog_accent">Catalog accent underline</string>
     <string name="settings_appearance_catalog_accent_description">Show a small accent-colored bar under each catalog title on the home screen, matching your theme.</string>
     <string name="settings_tracking_connect_with_code">Connect with code</string>

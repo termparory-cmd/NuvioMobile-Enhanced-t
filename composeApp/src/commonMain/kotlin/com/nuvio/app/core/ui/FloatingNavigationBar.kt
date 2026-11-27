@@ -95,7 +95,7 @@ internal expect val floatingNavigationGlowSupported: Boolean
 @Composable
 internal fun floatingNavigationBarPadding(): PaddingValues = PaddingValues(
     bottom = nuvioBottomNavigationBarInsets().asPaddingValues().calculateBottomPadding() +
-        nuvioBottomNavigationExtraVerticalPadding + 8.dp,
+        nuvioBottomNavigationExtraVerticalPadding + 6.dp,
 )
 
 // Shared by Android and iOS (the iPad pill and iPhone before iOS 26): the jelly pill with
@@ -210,14 +210,15 @@ internal fun FloatingNavigationBar(
     val currentItems by rememberUpdatedState(items)
     val currentIsRtl by rememberUpdatedState(isRtl)
     val density = LocalDensity.current
-    val trackHeight = if (inlineLabels) 48.dp + 4.dp * labelFraction
-    else 48.dp + (if (compactSize) 8.dp else 16.dp) * labelFraction
-    val horizontalPadding = 58.dp - 30.dp * labelFraction
+    // Bar footprint scaled to 75% of the original sizes (expanded and compact states).
+    val trackHeight = if (inlineLabels) 36.dp + 3.dp * labelFraction
+    else 36.dp + (if (compactSize) 6.dp else 12.dp) * labelFraction
+    val horizontalPadding = 43.5.dp - 22.5.dp * labelFraction
     // Inline (tablet) pill: expanded fits icon + label per tab, compact shrinks to icon-only
     // slots instead of keeping most of the expanded width.
     val inlineMaxWidth = run {
-        val compactWidth = 64.dp * items.size + 8.dp
-        val expandedWidth = 640.dp
+        val compactWidth = 48.dp * items.size + 6.dp
+        val expandedWidth = 480.dp
         compactWidth + (expandedWidth - compactWidth) * labelFraction
     }
 
@@ -253,7 +254,7 @@ internal fun FloatingNavigationBar(
     ) {
         BoxWithConstraints(
             modifier = Modifier
-                .widthIn(max = if (inlineLabels) inlineMaxWidth else 400.dp)
+                .widthIn(max = if (inlineLabels) inlineMaxWidth else 300.dp)
                 .fillMaxWidth()
                 .height(trackHeight)
                 .onSizeChanged {
@@ -264,7 +265,7 @@ internal fun FloatingNavigationBar(
                 },
             contentAlignment = Alignment.TopStart,
         ) {
-            val liquidGlassSelectionTabWidth = ((maxWidth - 8.dp) / items.size).coerceAtLeast(0.dp)
+            val liquidGlassSelectionTabWidth = ((maxWidth - 6.dp) / items.size).coerceAtLeast(0.dp)
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -435,7 +436,7 @@ internal fun FloatingNavigationBar(
                                     Box(
                                         Modifier
                                             .width(liquidGlassSelectionTabWidth)
-                                            .height(trackHeight - 8.dp),
+                                            .height(trackHeight - 6.dp),
                                     ) {
                                         LiquidGlassSelectionSurface(
                                             backdrop = liquidGlassSelectionBackdrop,
@@ -488,7 +489,7 @@ internal fun FloatingNavigationBar(
                                 Box(
                                     Modifier
                                         .width(liquidGlassSelectionTabWidth)
-                                        .height(trackHeight - 8.dp),
+                                        .height(trackHeight - 6.dp),
                                 ) {
                                     LiquidGlassIconRefractionSurface(
                                         backdrop = liquidGlassIconsBackdrop,

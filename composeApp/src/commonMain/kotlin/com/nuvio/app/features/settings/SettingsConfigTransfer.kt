@@ -960,6 +960,7 @@ internal object SettingsConfigTransfer {
         ThemeSettingsStorage.loadLiquidGlassNativeTabBarEnabled()?.let { put("liquid_glass_native_tab_bar_enabled", encodeSyncBoolean(it)) }
         ThemeSettingsStorage.loadTabBarBehavior()?.let { put("tab_bar_behavior", encodeSyncString(it)) }
         ThemeSettingsStorage.loadDynamicArtworkBackgroundEnabled()?.let { put("dynamic_artwork_background_enabled", encodeSyncBoolean(it)) }
+        ThemeSettingsStorage.loadGradientBackgroundEnabled()?.let { put("gradient_background_enabled", encodeSyncBoolean(it)) }
         ThemeSettingsStorage.loadShowCatalogAccentEnabled()?.let { put("show_catalog_accent_enabled", encodeSyncBoolean(it)) }
         ThemeSettingsStorage.loadSelectedAppLanguage()?.let { put("selected_app_language", encodeSyncString(it)) }
         ThemeSettingsStorage.loadNavBarStyle()?.let { put("nav_bar_style", encodeSyncString(it)) }
@@ -980,6 +981,7 @@ internal object SettingsConfigTransfer {
         payload.decodeSyncBoolean("liquid_glass_native_tab_bar_enabled")?.let { ThemeSettingsStorage.saveLiquidGlassNativeTabBarEnabled(it) }
         payload.decodeSyncString("tab_bar_behavior")?.let { ThemeSettingsStorage.saveTabBarBehavior(it) }
         payload.decodeSyncBoolean("dynamic_artwork_background_enabled")?.let { ThemeSettingsStorage.saveDynamicArtworkBackgroundEnabled(it) }
+        payload.decodeSyncBoolean("gradient_background_enabled")?.let { ThemeSettingsStorage.saveGradientBackgroundEnabled(it) }
         payload.decodeSyncBoolean("show_catalog_accent_enabled")?.let { ThemeSettingsStorage.saveShowCatalogAccentEnabled(it) }
         payload.decodeSyncString("selected_app_language")?.let { ThemeSettingsStorage.saveSelectedAppLanguage(it) }
         payload.decodeSyncString("nav_bar_style")?.let { ThemeSettingsStorage.saveNavBarStyle(it) }

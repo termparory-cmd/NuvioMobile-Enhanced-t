@@ -51,6 +51,9 @@ object ThemeSettingsRepository {
     private val _dynamicArtworkBackgroundEnabled = MutableStateFlow(false)
     val dynamicArtworkBackgroundEnabled: StateFlow<Boolean> = _dynamicArtworkBackgroundEnabled.asStateFlow()
 
+    private val _gradientBackgroundEnabled = MutableStateFlow(true)
+    val gradientBackgroundEnabled: StateFlow<Boolean> = _gradientBackgroundEnabled.asStateFlow()
+
     private val _showCatalogAccentEnabled = MutableStateFlow(false)
     val showCatalogAccentEnabled: StateFlow<Boolean> = _showCatalogAccentEnabled.asStateFlow()
 
@@ -115,6 +118,7 @@ object ThemeSettingsRepository {
         _tabBarBehavior.value = NuvioTabBarBehavior.Default
         _liquidGlassNativeTabBarEnabled.value = NuvioTabBarBehavior.Default.isEnabled
         _dynamicArtworkBackgroundEnabled.value = false
+        _gradientBackgroundEnabled.value = true
         _showCatalogAccentEnabled.value = false
         NativeTabBridge.publishAccentColor(
             hexColor = AppTheme.WHITE.nativeTabAccentHex(),
@@ -159,6 +163,8 @@ object ThemeSettingsRepository {
         applyTabBarBehavior(behavior)
         _dynamicArtworkBackgroundEnabled.value =
             ThemeSettingsStorage.loadDynamicArtworkBackgroundEnabled() ?: false
+        _gradientBackgroundEnabled.value =
+            ThemeSettingsStorage.loadGradientBackgroundEnabled() ?: true
         _showCatalogAccentEnabled.value =
             ThemeSettingsStorage.loadShowCatalogAccentEnabled() ?: false
         val appLanguage = AppLanguage.fromCode(ThemeSettingsStorage.loadSelectedAppLanguage())
@@ -238,6 +244,13 @@ object ThemeSettingsRepository {
         if (_dynamicArtworkBackgroundEnabled.value == enabled) return
         _dynamicArtworkBackgroundEnabled.value = enabled
         ThemeSettingsStorage.saveDynamicArtworkBackgroundEnabled(enabled)
+    }
+
+    fun setGradientBackground(enabled: Boolean) {
+        ensureLoaded()
+        if (_gradientBackgroundEnabled.value == enabled) return
+        _gradientBackgroundEnabled.value = enabled
+        ThemeSettingsStorage.saveGradientBackgroundEnabled(enabled)
     }
 
     fun setShowCatalogAccent(enabled: Boolean) {

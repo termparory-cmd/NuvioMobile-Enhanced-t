@@ -37,12 +37,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.ui.LocalDynamicArtworkTopColor
+import com.nuvio.app.core.ui.blendTowards
+import com.nuvio.app.core.ui.desaturate
 import com.nuvio.app.features.home.HomeCategoryFilter
 import com.nuvio.app.features.home.HomeFilterState
 import nuvio.composeapp.generated.resources.Res
@@ -54,9 +62,15 @@ import nuvio.composeapp.generated.resources.hero_filter_shows
 import nuvio.composeapp.generated.resources.hero_search_content_description
 import org.jetbrains.compose.resources.stringResource
 
-private val HeaderScrimColor = Color(0xFF141414)
 private val HeaderChipShape = RoundedCornerShape(9.dp)
-private const val HEADER_SCRIM_MAX_ALPHA = 0.7f
+
+// Scrolled top-bar color: a darker variant of the gradient's top (tint) color,
+// 5% less saturated so it reads slightly subtler, blended halfway toward the base.
+private const val HEADER_SCRIM_DESATURATION = 0.95f
+private const val HEADER_SCRIM_MIX_FRACTION = 0.5f
+private val HEADER_SCRIM_SHADOW_DP = 16.dp
+private const val HEADER_SCRIM_SHADOW_ALPHA = 0.35f
+private const val HEADER_LINE_ALPHA = 0.14f
 
 /**
  * Pinned top bar, per the reference design: profile name + Search on the first line,
@@ -84,10 +98,40 @@ internal fun HomeCardHeader(
         }
     }
 
+    val topColorState = LocalDynamicArtworkTopColor.current
+    val baseColor = MaterialTheme.colorScheme.background
+    val scrimColor = remember(topColorState?.value, baseColor) {
+        val top = topColorState?.value ?: baseColor
+        top.desaturate(HEADER_SCRIM_DESATURATION).blendTowards(baseColor, HEADER_SCRIM_MIX_FRACTION)
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(HeaderScrimColor.copy(alpha = HEADER_SCRIM_MAX_ALPHA * scrimFraction().coerceIn(0f, 1f))),
+            // zIndex keeps the shadow below the bar painted over the scrolling list.
+            .zIndex(1f)
+            .drawWithContent {
+                drawContent()
+                val fraction = scrimFraction().coerceIn(0f, 1f)
+                if (fraction > 0f) {
+                    // Dynamic drop shadow: intensity tracks the same scroll point as the scrim.
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = HEADER_SCRIM_SHADOW_ALPHA * fraction),
+                            1f to Color.Transparent,
+                        ),
+                        topLeft = Offset(0f, size.height),
+                        size = Size(size.width, HEADER_SCRIM_SHADOW_DP.toPx()),
+                    )
+                    // Hard separator line at the bar's bottom edge.
+                    drawRect(
+                        color = Color.White.copy(alpha = HEADER_LINE_ALPHA * fraction),
+                        topLeft = Offset(0f, size.height - 1.dp.toPx()),
+                        size = Size(size.width, 1.dp.toPx()),
+                    )
+                }
+            }
+            .background(scrimColor.copy(alpha = scrimFraction().coerceIn(0f, 1f))),
     ) {
         Column(
             modifier = Modifier

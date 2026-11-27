@@ -71,6 +71,7 @@ internal fun LazyListScope.layoutSettingsContent(
 ) {
     item {
         val dynamicArtworkBackgroundEnabled by ThemeSettingsRepository.dynamicArtworkBackgroundEnabled.collectAsStateWithLifecycle()
+        val gradientBackgroundEnabled by ThemeSettingsRepository.gradientBackgroundEnabled.collectAsStateWithLifecycle()
         val showCatalogAccentEnabled by ThemeSettingsRepository.showCatalogAccentEnabled.collectAsStateWithLifecycle()
         SettingsSection(
             title = stringResource(Res.string.settings_appearance_section_home),
@@ -113,6 +114,16 @@ internal fun LazyListScope.layoutSettingsContent(
                     checked = dynamicArtworkBackgroundEnabled,
                     isTablet = isTablet,
                     onCheckedChange = ThemeSettingsRepository::setDynamicArtworkBackground,
+                )
+                SettingsGroupDivider(isTablet = isTablet)
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.settings_appearance_gradient_background),
+                    description = stringResource(
+                        Res.string.settings_appearance_gradient_background_description,
+                    ),
+                    checked = gradientBackgroundEnabled,
+                    isTablet = isTablet,
+                    onCheckedChange = ThemeSettingsRepository::setGradientBackground,
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
