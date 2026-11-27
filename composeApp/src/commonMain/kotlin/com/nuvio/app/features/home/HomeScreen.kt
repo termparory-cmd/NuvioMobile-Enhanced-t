@@ -5,20 +5,26 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,9 +120,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
+import com.nuvio.app.features.home.components.HERO_CARD_BOTTOM_SPACING
+import com.nuvio.app.features.home.components.HomeCardHeader
 import com.nuvio.app.features.home.components.continueWatchingHeroViewportReserveHeight
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
+import com.nuvio.app.features.library.LibraryRepository
 import kotlinx.coroutines.CancellationException
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -133,6 +142,9 @@ fun HomeScreen(
     onContinueWatchingLongPress: ((ContinueWatchingItem) -> Unit)? = null,
     continueWatchingDisintegrationRequest: DisintegrationRequest<String>? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
+    onSearchClick: (() -> Unit)? = null,
+    onHeroPlayClick: ((MetaPreview) -> Unit)? = null,
+    onHeroMyListClick: ((MetaPreview) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) {
@@ -913,14 +925,55 @@ fun HomeScreen(
         onFirstCatalogRendered?.invoke()
     }
 
-    val visibleCollections = remember(collections) {
-        collections.filter { it.folders.isNotEmpty() }
+    val libraryUiState by remember {
+        LibraryRepository.ensureLoaded()
+        LibraryRepository.uiState
+    }.collectAsStateWithLifecycle()
+    val isCardHeroStyle = homeSettingsUiState.heroStyle == HomeHeroStyle.CARD
+    var tvShowsEnabled by rememberSaveable { mutableStateOf(true) }
+    var moviesEnabled by rememberSaveable { mutableStateOf(true) }
+    var selectedCategoryName by rememberSaveable { mutableStateOf(HomeCategoryFilter.ALL.name) }
+    val selectedCategory = remember(selectedCategoryName) {
+        HomeCategoryFilter.entries.firstOrNull { it.name == selectedCategoryName }
+            ?: HomeCategoryFilter.ALL
+    }
+    val activeFilterState = remember(isCardHeroStyle, tvShowsEnabled, moviesEnabled, selectedCategory) {
+        if (isCardHeroStyle) {
+            HomeFilterState(
+                tvShowsEnabled = tvShowsEnabled,
+                moviesEnabled = moviesEnabled,
+                category = selectedCategory,
+            )
+        } else {
+            HomeFilterState()
+        }
+    }
+
+    val filteredHeroItems = remember(homeUiState.heroItems, isCardHeroStyle, activeFilterState) {
+        if (isCardHeroStyle) {
+            homeUiState.heroItems.filter { it.matchesHomeFilter(activeFilterState) }
+        } else {
+            homeUiState.heroItems
+        }
+    }
+    val visibleCollections = remember(collections, isCardHeroStyle, activeFilterState) {
+        collections.filter { collection ->
+            collection.folders.isNotEmpty() &&
+                (!isCardHeroStyle || collection.matchesHomeFilter(activeFilterState))
+        }
     }
     val collectionsMap = remember(visibleCollections) {
         visibleCollections.associateBy { "collection_${it.id}" }
     }
-    val sectionsMap = remember(homeUiState.sections) {
-        homeUiState.sections.associateBy(HomeCatalogSection::key)
+    val filteredSections = remember(homeUiState.sections, isCardHeroStyle, activeFilterState) {
+        if (isCardHeroStyle) {
+            homeUiState.sections.filter { it.matchesHomeFilter(activeFilterState) }
+        } else {
+            homeUiState.sections
+        }
+    }
+    val sectionsMap = remember(filteredSections) {
+        filteredSections.associateBy(HomeCatalogSection::key)
     }
     val enabledHomeItems = remember(homeSettingsUiState.items) {
         homeSettingsUiState.items.filter { it.enabled }
@@ -950,17 +1003,27 @@ fun HomeScreen(
             resolvedBadgeInputs.value = inputs
         }
     }
+    val hasUnfilteredCollectionRows = remember(enabledHomeItems, collections) {
+        val allVisibleCollectionKeys = collections
+            .asSequence()
+            .filter { it.folders.isNotEmpty() }
+            .mapTo(mutableSetOf()) { "collection_${it.id}" }
+        enabledHomeItems.any { item ->
+            item.isCollection && item.key in allVisibleCollectionKeys
+        }
+    }
     val hasRenderableCollectionRows = remember(enabledHomeItems, collectionsMap) {
         enabledHomeItems.any { item ->
             item.isCollection && collectionsMap[item.key] != null
         }
     }
-    val hasRenderableHomeRows = homeUiState.sections.isNotEmpty() || hasRenderableCollectionRows
+    val hasRenderableHomeRows = homeUiState.sections.isNotEmpty() || hasUnfilteredCollectionRows
     val showHeroSlot = shouldShowHomeHeroSlot(
         heroEnabled = homeSettingsUiState.heroEnabled,
-        hasHeroItems = homeUiState.heroItems.isNotEmpty(),
+        hasHeroItems = filteredHeroItems.isNotEmpty(),
         isResolvingHeroSources = isResolvingHeroSources,
-        hasRenderableHomeRows = hasRenderableHomeRows,
+        hasRenderableHomeRows = hasRenderableHomeRows &&
+            (!isCardHeroStyle || (activeFilterState.isCategoriesEnabled && homeUiState.heroItems.isEmpty())),
     )
     val showHeroSkeleton = showHeroSlot &&
         homeUiState.heroItems.isEmpty() &&
@@ -1005,32 +1068,51 @@ fun HomeScreen(
             }
         }
 
+        val heroStretchEnabled = showHeroSlot
         val heroStretchState = rememberHeroStretchState(homeListState)
-        val heroStretchModifier = if (showHeroSlot) {
+        val heroStretchModifier = if (heroStretchEnabled) {
             Modifier.nestedScroll(heroStretchState.nestedScrollConnection)
         } else {
             Modifier
         }
+        // Edge-vanish scrim for the pinned header: invisible at the very top of the list,
+        // fading in over the first 80dp of scroll (reference behavior).
+        val headerScrimTravelPx = with(LocalDensity.current) { 80.dp.toPx() }
+        val headerScrimFraction = remember(homeListState, headerScrimTravelPx) {
+            derivedStateOf {
+                if (homeListState.firstVisibleItemIndex > 0) {
+                    1f
+                } else {
+                    (homeListState.firstVisibleItemScrollOffset / headerScrimTravelPx).coerceIn(0f, 1f)
+                }
+            }
+        }
+        val showsChipActive = tvShowsEnabled && !moviesEnabled
+        val moviesChipActive = !tvShowsEnabled && moviesEnabled
 
         var activeHeroArtworkUrl by remember { mutableStateOf<String?>(null) }
         val onActiveHeroArtworkChange: (String?) -> Unit = remember {
             { url -> activeHeroArtworkUrl = url }
         }
+        val cardHeaderProfileName = profileState.activeProfile?.name
+            ?.takeIf { it.isNotBlank() }
+            ?: stringResource(Res.string.compose_nav_profile)
 
-        DynamicArtworkBackground(artworkUrl = activeHeroArtworkUrl) {
-            NuvioScreen(
-                modifier = Modifier.fillMaxSize().then(heroStretchModifier),
-                horizontalPadding = 0.dp,
-                topPadding = if (showHeroSlot) 0.dp else null,
-                listState = homeListState,
-                autoHidesNativeTabBar = true,
-            ) {
-                if (showHeroSlot) {
+        val homeListContent: LazyListScope.() -> Unit = {
+            if (showHeroSlot) {
                     item(key = "home_hero", contentType = "hero") {
-                        val homeHeroState = rememberHomeHeroState(homeUiState.heroItems)
+                        val homeHeroState = rememberHomeHeroState(filteredHeroItems)
                         Crossfade(
                             targetState = showHeroSkeleton,
-                            modifier = Modifier.nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current),
+                            modifier = Modifier
+                                .nuvioHorizontalScrollBleed(LocalVerticalBarPadding.current)
+                                .then(
+                                    if (isCardHeroStyle) {
+                                        Modifier.padding(bottom = HERO_CARD_BOTTOM_SPACING)
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                             animationSpec = tween(320),
                             label = "HomeHeroLoading",
                         ) { isLoading ->
@@ -1042,7 +1124,7 @@ fun HomeScreen(
                                     heroStyle = homeSettingsUiState.heroStyle,
                                 )
 
-                                homeUiState.heroItems.isNotEmpty() -> HomeHeroSection(
+                                filteredHeroItems.isNotEmpty() -> HomeHeroSection(
                                     items = homeHeroState.items,
                                     modifier = Modifier,
                                     viewportHeight = maxHeight,
@@ -1059,7 +1141,12 @@ fun HomeScreen(
                                     trailerStartUnmuted = homeSettingsUiState.heroTrailerStartUnmuted,
                                     showImdbRating = homeHeroState.showImdbRating,
                                     showMdbListRatings = homeHeroState.showMdbListRatings,
+                                    isItemSaved = remember(libraryUiState) {
+                                        { item -> LibraryRepository.isSaved(item.id, item.type) }
+                                    },
                                     onItemClick = onPosterClick,
+                                    onPlayClick = onHeroPlayClick,
+                                    onToggleSavedClick = onHeroMyListClick,
                                     onActiveArtworkChange = onActiveHeroArtworkChange,
                                 )
 
@@ -1242,6 +1329,63 @@ fun HomeScreen(
                         }
                     }
                 }
+        }
+
+        DynamicArtworkBackground(artworkUrl = activeHeroArtworkUrl) {
+            if (isCardHeroStyle) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    HomeCardHeader(
+                        profileName = cardHeaderProfileName,
+                        filterState = activeFilterState,
+                        onShowsClick = {
+                            if (showsChipActive) {
+                                tvShowsEnabled = true
+                                moviesEnabled = true
+                            } else {
+                                tvShowsEnabled = true
+                                moviesEnabled = false
+                            }
+                        },
+                        onMoviesClick = {
+                            if (moviesChipActive) {
+                                tvShowsEnabled = true
+                                moviesEnabled = true
+                            } else {
+                                tvShowsEnabled = false
+                                moviesEnabled = true
+                            }
+                        },
+                        onSelectCategory = { nextCategory ->
+                            if (activeFilterState.isCategoriesEnabled) {
+                                selectedCategoryName = nextCategory.name
+                            }
+                        },
+                        onSearchClick = { onSearchClick?.invoke() },
+                        scrimFraction = { headerScrimFraction.value },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    NuvioScreen(
+                        modifier = Modifier
+                            .weight(1f)
+                            // Scroll bounce: everything below the top bar pushes down and springs back.
+                            .graphicsLayer { translationY = heroStretchState.stretchPx }
+                            .then(heroStretchModifier),
+                        horizontalPadding = 0.dp,
+                        topPadding = 0.dp,
+                        listState = homeListState,
+                        autoHidesNativeTabBar = true,
+                        content = homeListContent,
+                    )
+                }
+            } else {
+                NuvioScreen(
+                    modifier = Modifier.fillMaxSize().then(heroStretchModifier),
+                    horizontalPadding = 0.dp,
+                    topPadding = if (showHeroSlot) 0.dp else null,
+                    listState = homeListState,
+                    autoHidesNativeTabBar = true,
+                    content = homeListContent,
+                )
             }
         }
     }

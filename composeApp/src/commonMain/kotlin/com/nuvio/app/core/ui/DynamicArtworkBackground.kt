@@ -8,15 +8,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.nuvio.app.features.settings.ThemeSettingsRepository
 
@@ -24,9 +26,21 @@ val LocalDynamicArtworkBackgroundActive = staticCompositionLocalOf { false }
 
 val LocalDynamicArtworkBackgroundColor = staticCompositionLocalOf<State<Color>?> { null }
 
+/** The animated tint color that sits at the top of the gradient (also drives the top-bar scrim). */
+val LocalDynamicArtworkTopColor = staticCompositionLocalOf<State<Color>?> { null }
+
 private const val DOMINANT_BLEND_FRACTION = 0.42f
 
 private const val COLOR_TRANSITION_MS = 600
+
+// Gradient backdrop structure (visual reference: linear-gradient(to bottom,
+// var(--tint) 0%, mix(var(--tint), base) 60%, base 85%)) mapped onto the app's
+// dynamic tint + base color variables. The base color comes from the active theme
+// (#0D0D0D by default, pure black with AMOLED Black enabled).
+private const val BACKDROP_TINT_STOP = 0f
+private const val BACKDROP_TINT_MIX_STOP = 0.6f
+private const val BACKDROP_TINT_MIX_FRACTION = 0.5f
+private const val BACKDROP_BASE_STOP = 0.85f
 
 @Composable
 fun rememberDynamicArtworkBackgroundEnabled(): Boolean {
@@ -50,6 +64,7 @@ fun DynamicArtworkBackground(
 
     val colorScheme = MaterialTheme.colorScheme
     val baseColor = colorScheme.background
+    val gradientEnabled by ThemeSettingsRepository.gradientBackgroundEnabled.collectAsState()
     val tint = rememberArtworkTint(artworkUrl)
     var lastTint by remember { mutableStateOf<Color?>(null) }
     val currentTint: Color? = when (tint) {
@@ -67,18 +82,42 @@ fun DynamicArtworkBackground(
         animationSpec = tween(durationMillis = COLOR_TRANSITION_MS, easing = LinearOutSlowInEasing),
         label = "dynamic_artwork_wash_color",
     )
+    val topColor = animateColorAsState(
+        targetValue = currentTint ?: baseColor,
+        animationSpec = tween(durationMillis = COLOR_TRANSITION_MS, easing = LinearOutSlowInEasing),
+        label = "dynamic_artwork_top_color",
+    )
 
-    Box(modifier = modifier.fillMaxSize().drawBehind { drawRect(washColor.value) }) {
+    Box(modifier = modifier.fillMaxSize().drawBehind {
+        if (gradientEnabled) {
+            // tint → half-blend with the base color → base color, fading out by 85% of the screen.
+            val mixColor = topColor.value.blendTowards(baseColor, BACKDROP_TINT_MIX_FRACTION)
+            drawRect(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        BACKDROP_TINT_STOP to topColor.value,
+                        BACKDROP_TINT_MIX_STOP to mixColor,
+                        BACKDROP_BASE_STOP to baseColor,
+                    ),
+                ),
+            )
+            // Below the base stop the page stays in the base color.
+            drawRect(baseColor, topLeft = Offset(0f, size.height * BACKDROP_BASE_STOP))
+        } else {
+            drawRect(washColor.value)
+        }
+    }) {
         CompositionLocalProvider(
             LocalDynamicArtworkBackgroundActive provides true,
             LocalDynamicArtworkBackgroundColor provides washColor,
+            LocalDynamicArtworkTopColor provides topColor,
         ) {
             content()
         }
     }
 }
 
-private fun Color.blendTowards(target: Color, fraction: Float): Color {
+internal fun Color.blendTowards(target: Color, fraction: Float): Color {
     val clamped = fraction.coerceIn(0f, 1f)
     return Color(
         red = red + (target.red - red) * clamped,

@@ -61,7 +61,7 @@ internal fun JellyTabRow(
     val palette = MaterialTheme.themePalette
     // The override applies to both inactive icon glyphs and their labels; selected styling stays themed.
     val color = if (active) tokens.colors.accent else inactiveColorOverride ?: tokens.colors.textMuted
-    val iconSize = if (compactSize) 24.dp else 28.dp
+    val iconSize = if (compactSize) 18.dp else 21.dp
     val labelHeight = if (compactSize) 14.dp else 16.dp
     val iconModifier = Modifier.size(iconSize)
         .then(if (active) Modifier.gradientMask(palette.accentBrush()) else Modifier)

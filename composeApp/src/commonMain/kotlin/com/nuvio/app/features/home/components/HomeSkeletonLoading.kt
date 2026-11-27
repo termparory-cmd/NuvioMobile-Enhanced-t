@@ -71,143 +71,172 @@ internal fun HomeSkeletonHero(
 ) {
     val brush = rememberHomeSkeletonBrush()
     val isCardStyle = heroStyle == HomeHeroStyle.CARD
-    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (isCardStyle) {
-                    Modifier.padding(
-                        top = statusBarTopPadding + HERO_CARD_TOP_PADDING,
-                        start = HERO_CARD_HORIZONTAL_PADDING,
-                        end = HERO_CARD_HORIZONTAL_PADDING,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .clip(
-                if (isCardStyle) {
-                    RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
-                } else {
-                    RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-                },
-            ),
-    ) {
-        val layout = homeHeroLayout(
-            maxWidthDp = maxWidth.value,
-            viewportHeightDp = viewportHeight?.value,
-            mobileBelowSectionHeightHintDp = mobileBelowSectionHeightHint?.value,
-        )
-        val containerWidth = maxWidth
-        val heroHeight = if (isCardStyle) {
-            cardHeroHeight(
-                maxWidth = maxWidth,
-                viewportHeight = viewportHeight,
-                isTablet = layout.isTablet,
-            )
-        } else {
-            layout.heroHeight
-        }
-
-        Box(
+    Column(modifier = modifier.fillMaxWidth()) {
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(heroHeight)
-                .background(brush),
+                .then(
+                    if (isCardStyle) {
+                        Modifier.padding(
+                            top = HERO_CARD_TOP_PADDING,
+                            start = HERO_CARD_HORIZONTAL_PADDING,
+                            end = HERO_CARD_HORIZONTAL_PADDING,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .clip(
+                    if (isCardStyle) {
+                        RoundedCornerShape(HERO_CARD_CORNER_RADIUS)
+                    } else {
+                        RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+                    },
+                ),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
-                            ),
-                        ),
-                    ),
+            val layout = homeHeroLayout(
+                maxWidthDp = maxWidth.value,
+                viewportHeightDp = viewportHeight?.value,
+                mobileBelowSectionHeightHintDp = mobileBelowSectionHeightHint?.value,
             )
+            val containerWidth = maxWidth
+            val heroHeight = if (isCardStyle) {
+                cardHeroHeight(
+                    maxWidth = maxWidth,
+                    viewportHeight = viewportHeight,
+                    isTablet = layout.isTablet,
+                )
+            } else {
+                layout.heroHeight
+            }
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(layout.bottomFadeHeight)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                                MaterialTheme.colorScheme.background,
-                            ),
-                        ),
-                    ),
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = layout.contentHorizontalPadding,
-                        vertical = layout.contentVerticalPadding,
-                    ),
-                horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
+                    .height(heroHeight)
+                    .background(brush),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth(layout.contentWidthFraction)
-                        .widthIn(max = layout.contentMaxWidth),
-                    horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
-                ) {
-                    val logoWidth = containerWidth
-                        .times(layout.contentWidthFraction * layout.logoWidthFraction)
-                        .coerceAtMost(layout.contentMaxWidth * layout.logoWidthFraction)
+                if (!isCardStyle) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
+                                    ),
+                                ),
+                            ),
+                    )
 
-                    SkeletonBlock(
-                        brush = brush,
-                        width = logoWidth,
-                        height = logoWidth / 2.6f,
-                        cornerRadius = 12.dp,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SkeletonBlock(brush = brush, width = 52.dp, height = 14.dp, cornerRadius = 999.dp)
-                        SkeletonDot(brush = brush)
-                        SkeletonBlock(brush = brush, width = 72.dp, height = 14.dp, cornerRadius = 999.dp)
-                        SkeletonDot(brush = brush)
-                        SkeletonBlock(brush = brush, width = 40.dp, height = 14.dp, cornerRadius = 999.dp)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SkeletonBlock(
-                        brush = brush,
-                        width = logoWidth * 1.45f,
-                        height = 12.dp,
-                        cornerRadius = 999.dp,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SkeletonBlock(
-                        brush = brush,
-                        width = logoWidth * 1.1f,
-                        height = 12.dp,
-                        cornerRadius = 999.dp,
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(layout.bottomFadeHeight)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                                        MaterialTheme.colorScheme.background,
+                                    ),
+                                ),
+                            ),
                     )
                 }
-                Spacer(modifier = Modifier.height(if (layout.isTablet) 16.dp else 18.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = if (isCardStyle) 16.dp else layout.contentHorizontalPadding,
+                            vertical = if (isCardStyle) 16.dp else layout.contentVerticalPadding,
+                        ),
+                    horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
                 ) {
-                    SkeletonBlock(brush = brush, width = 32.dp, height = 8.dp, cornerRadius = 999.dp)
-                    SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
-                    SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
-                    SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth(layout.contentWidthFraction)
+                            .widthIn(max = layout.contentMaxWidth),
+                        horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
+                    ) {
+                        val logoScale = if (isCardStyle) 0.9f else 1f
+                        val logoWidth = containerWidth
+                            .times(layout.contentWidthFraction * layout.logoWidthFraction * logoScale)
+                            .coerceAtMost(layout.contentMaxWidth * layout.logoWidthFraction * logoScale)
+
+                        SkeletonBlock(
+                            brush = brush,
+                            width = logoWidth,
+                            height = logoWidth / 2.6f,
+                            cornerRadius = 12.dp,
+                        )
+                        Spacer(modifier = Modifier.height(if (isCardStyle) 8.dp else 12.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(if (isCardStyle) 6.dp else 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SkeletonBlock(brush = brush, width = 52.dp, height = 14.dp, cornerRadius = 999.dp)
+                            SkeletonDot(brush = brush)
+                            SkeletonBlock(brush = brush, width = 72.dp, height = 14.dp, cornerRadius = 999.dp)
+                            SkeletonDot(brush = brush)
+                            SkeletonBlock(brush = brush, width = 40.dp, height = 14.dp, cornerRadius = 999.dp)
+                        }
+                        if (isCardStyle) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(brush),
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(brush),
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            SkeletonBlock(
+                                brush = brush,
+                                width = logoWidth * 1.45f,
+                                height = 12.dp,
+                                cornerRadius = 999.dp,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SkeletonBlock(
+                                brush = brush,
+                                width = logoWidth * 1.1f,
+                                height = 12.dp,
+                                cornerRadius = 999.dp,
+                            )
+                        }
+                    }
+                    if (!isCardStyle) {
+                        Spacer(modifier = Modifier.height(if (layout.isTablet) 16.dp else 18.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SkeletonBlock(brush = brush, width = 32.dp, height = 8.dp, cornerRadius = 999.dp)
+                            SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
+                            SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
+                            SkeletonBlock(brush = brush, width = 8.dp, height = 8.dp, cornerRadius = 999.dp)
+                        }
+                    }
                 }
             }
         }

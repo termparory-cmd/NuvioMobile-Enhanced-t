@@ -108,12 +108,15 @@ import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.collection.CollectionSyncService
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
+import com.nuvio.app.features.details.seriesPrimaryAction
 import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadSubtitles
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
+import com.nuvio.app.features.home.HomeHeroStyle
 import com.nuvio.app.features.home.HomeRepository
+import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.buildAddonCatalogRefreshSignature
 import com.nuvio.app.features.home.components.HomeHeroTrailerPlaybackController
 import com.nuvio.app.features.home.opensDetails
@@ -197,8 +200,10 @@ import com.nuvio.app.features.watching.application.WatchingState
 import com.nuvio.app.features.watching.application.canMarkWatched
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
+import com.nuvio.app.features.watchprogress.CurrentDateProvider
 import com.nuvio.app.features.watchprogress.ResumePromptRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.features.search.SearchScreen
 import com.nuvio.app.features.watchprogress.WatchProgressSourceCoordinator
 import com.nuvio.app.features.watchprogress.continueWatchingItemKey
 import com.nuvio.app.features.watchprogress.nextUpDismissKey
@@ -331,6 +336,11 @@ internal fun MainAppContent(
             LiveTvRepository.ensureLoaded()
             LiveTvRepository.uiState
         }.collectMappedAsState { it.showInNavigation }
+        val homeCatalogSettingsUiState by remember {
+            HomeCatalogSettingsRepository.snapshot()
+            HomeCatalogSettingsRepository.uiState
+        }.collectAsStateWithLifecycle()
+        val showSearchInNavigation = homeCatalogSettingsUiState.heroStyle != HomeHeroStyle.CARD
         val authState by AuthRepository.state.collectAsStateWithLifecycle()
         val openPosterActions: (PosterActionTarget) -> Unit = { target ->
             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -441,10 +451,10 @@ internal fun MainAppContent(
     }
 
     fun activateTab(tab: AppScreenTab) {
-        val destination = if (tab == AppScreenTab.LiveTv && !showLiveTvInNavigation) {
-            AppScreenTab.Home
-        } else {
-            tab
+        val destination = when {
+            tab == AppScreenTab.LiveTv && !showLiveTvInNavigation -> AppScreenTab.Home
+            tab == AppScreenTab.Search && !showSearchInNavigation -> AppScreenTab.Home
+            else -> tab
         }
         if (useNativeNavigation && onActivate != null) {
             onActivate(destination)
@@ -485,6 +495,12 @@ internal fun MainAppContent(
         }
     }
 
+    LaunchedEffect(showSearchInNavigation, selectedTab) {
+        if (!showSearchInNavigation && selectedTab == AppScreenTab.Search) {
+            activateTab(AppScreenTab.Home)
+        }
+    }
+
     LaunchedEffect(
         liquidGlassNativeTabBarSupported,
         liquidGlassNativeTabBarEnabled,
@@ -494,10 +510,14 @@ internal fun MainAppContent(
         currentRoute,
         selectedTab,
         showLiveTvInNavigation,
+        showSearchInNavigation,
     ) {
         NativeTabBridge.requestedTabs.collectLatest { requestedTab ->
             val requestedAppTab = requestedTab.toAppScreenTab()
             if (requestedAppTab == AppScreenTab.LiveTv && !showLiveTvInNavigation) {
+                return@collectLatest
+            }
+            if (requestedAppTab == AppScreenTab.Search && !showSearchInNavigation) {
                 return@collectLatest
             }
             if (
@@ -630,6 +650,11 @@ internal fun MainAppContent(
                 NativeTabBridge.publishTabBarVisible(false)
             }
         }
+    }
+
+    LaunchedEffect(showSearchInNavigation, ownsAppRuntime) {
+        if (!ownsAppRuntime) return@LaunchedEffect
+        NativeTabBridge.publishSearchTabVisible(showSearchInNavigation)
     }
 
     LaunchedEffect(appContentGeneration) {
@@ -1515,6 +1540,113 @@ internal fun MainAppContent(
             selectedContinueWatchingForActions = item
         }
 
+        var heroPlayResolving by remember { mutableStateOf(false) }
+        val onHeroPlayClick: (MetaPreview) -> Unit = heroPlay@{ item ->
+            if (heroPlayResolving) return@heroPlay
+            heroPlayResolving = true
+            coroutineScope.launch {
+                try {
+                    val cachedMeta = MetaDetailsRepository.peek(item.type, item.id)
+                    val meta = cachedMeta ?: runCatching {
+                        MetaDetailsRepository.fetch(item.type, item.id)
+                    }.getOrNull()
+                    val resolvedType = meta?.type ?: item.type
+                    val isSeries = resolvedType.trim().lowercase() in setOf("series", "tv", "show", "tvshow") ||
+                        meta?.videos?.any { it.season != null || it.episode != null } == true
+
+                    if (isSeries && meta != null) {
+                        val seriesAction = meta.seriesPrimaryAction(
+                            entries = WatchProgressRepository.uiState.value.entries,
+                            watchedItems = watchedUiState.items,
+                            todayIsoDate = CurrentDateProvider.todayIsoDate(),
+                            preferFurthestEpisode = continueWatchingPreferencesUiState.upNextFromFurthestEpisode,
+                            watchedKeys = watchedUiState.watchedKeys,
+                            allowRewatch = true,
+                        )
+                        if (seriesAction != null) {
+                            val episodeVideo = meta.videos.firstOrNull { video ->
+                                video.id == seriesAction.videoId ||
+                                    (video.season == seriesAction.seasonNumber && video.episode == seriesAction.episodeNumber)
+                            }
+                            onPlay(
+                                meta.type,
+                                seriesAction.videoId,
+                                meta.id,
+                                meta.type,
+                                meta.name,
+                                meta.logo ?: item.logo,
+                                meta.poster ?: item.poster,
+                                meta.background ?: item.banner,
+                                seriesAction.seasonNumber,
+                                seriesAction.episodeNumber,
+                                seriesAction.episodeTitle,
+                                seriesAction.episodeThumbnail,
+                                episodeVideo?.overview ?: meta.description ?: item.description,
+                                seriesAction.resumePositionMs,
+                            )
+                            return@launch
+                        }
+                    }
+
+                    if (!isSeries) {
+                        val movieProgress = WatchProgressRepository.progressForVideo(
+                            videoId = item.id,
+                            parentMetaId = item.id,
+                        )?.takeIf { it.isResumable }
+                        onPlay(
+                            resolvedType,
+                            meta?.id ?: item.id,
+                            meta?.id ?: item.id,
+                            resolvedType,
+                            meta?.name ?: item.name,
+                            meta?.logo ?: item.logo,
+                            meta?.poster ?: item.poster,
+                            meta?.background ?: item.banner,
+                            null,
+                            null,
+                            null,
+                            null,
+                            meta?.description ?: item.description,
+                            movieProgress?.lastPositionMs,
+                        )
+                        return@launch
+                    }
+
+                    navController.openPreview(item)
+                } finally {
+                    heroPlayResolving = false
+                }
+            }
+        }
+
+        val onHeroMyListClick: (MetaPreview) -> Unit = { preview ->
+            val libraryItem = preview.toLibraryItem(savedAtEpochMs = 0L)
+            if (!isRemoteLibrarySource) {
+                LibraryRepository.toggleLocalSaved(libraryItem)
+            } else {
+                pickerItem = libraryItem
+                pickerTitle = preview.name
+                pickerTabs = LibraryRepository.libraryListTabs(libraryItem)
+                pickerMembership = pickerTabs.associate { it.key to false }
+                pickerPending = true
+                pickerError = null
+                showLibraryListPicker = true
+                coroutineScope.launch {
+                    runCatching {
+                        val snapshot = LibraryRepository.getMembershipSnapshot(libraryItem)
+                        val tabs = LibraryRepository.libraryListTabs(libraryItem)
+                        pickerTabs = tabs
+                        pickerMembership = tabs.associate { tab ->
+                            tab.key to (snapshot[tab.key] == true)
+                        }
+                    }.onFailure { error ->
+                        pickerError = error.message ?: getString(Res.string.trakt_lists_load_failed)
+                    }
+                    pickerPending = false
+                }
+            }
+        }
+
         val onLiveTvChannelClick: (LiveTvChannel) -> Unit = { channel ->
             coroutineScope.launch {
                 val playableChannel = runCatching {
@@ -1632,6 +1764,7 @@ internal fun MainAppContent(
                         liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
                         liquidGlassNativeTabBarEnabled = liquidGlassNativeTabBarEnabled,
                         showLiveTvInNavigation = showLiveTvInNavigation,
+                        showSearchInNavigation = showSearchInNavigation,
                         requests = remember(
                             homeScrollToTopRequests,
                             searchScrollToTopRequests,
@@ -1793,6 +1926,13 @@ internal fun MainAppContent(
                                         )
                                     )
                                 },
+                                onSearchClick = {
+                                    navController.navigate(
+                                        SearchRoute(title = nativeTabSearchTitle),
+                                    )
+                                },
+                                onHeroPlayClick = onHeroPlayClick,
+                                onHeroMyListClick = onHeroMyListClick,
                                 onRequestedSettingsPageConsumed = {
                                     requestedSettingsPageName = null
                                 },
@@ -1905,6 +2045,22 @@ internal fun MainAppContent(
                         navController = navController,
                         onPosterLongClick = openPosterActions,
                     )
+                }
+                entry<SearchRoute> { route ->
+                    OpaqueAppSurfaces {
+                        val onBack = rememberGuardedPopBackStack(navController, route)
+                        val routeSearchListState = rememberLazyListState()
+                        SearchScreen(
+                            modifier = Modifier.fillMaxSize(),
+                            listState = routeSearchListState,
+                            onBack = onBack,
+                            onPosterClick = navController::openPreview,
+                            onPosterLongClick = { meta ->
+                                openPosterActions(PosterActionTarget(preview = meta))
+                            },
+                            searchFocusRequestCount = if (route.autoFocusSearch) 1 else 0,
+                        )
+                    }
                 }
                 entry<HomescreenSettingsRoute> { route ->
                     SettingsDestination(route, navController) { onBack ->
@@ -2058,6 +2214,7 @@ internal fun MainAppContent(
                     SettingsRouteNavigationBar(
                         isTabletLayout = useTabletFloatingTabBar || maxWidth >= 768.dp,
                         showLiveTv = showLiveTvInNavigation,
+                        showSearch = showSearchInNavigation,
                         backdrop = settingsRouteBarBackdrop,
                         onTabSelected = ::selectTabFromSettingsRoute,
                         onProfileSelected = onNavigationProfileSelected,

@@ -179,6 +179,9 @@ internal data class AppTabActions(
     val onCollectionsSettingsClick: () -> Unit = {},
     val onWatchPartySettingsClick: () -> Unit = {},
     val onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
+    val onSearchClick: (() -> Unit)? = null,
+    val onHeroPlayClick: ((MetaPreview) -> Unit)? = null,
+    val onHeroMyListClick: ((MetaPreview) -> Unit)? = null,
     val onRequestedSettingsPageConsumed: () -> Unit = {},
     val onInitialHomeContentRendered: () -> Unit = {},
 )
@@ -213,6 +216,9 @@ internal fun AppTabHost(
                             onContinueWatchingLongPress = actions.onContinueWatchingLongPress,
                             continueWatchingDisintegrationRequest = state.continueWatchingDisintegrationRequest,
                             onFolderClick = actions.onFolderClick,
+                            onSearchClick = actions.onSearchClick,
+                            onHeroPlayClick = actions.onHeroPlayClick,
+                            onHeroMyListClick = actions.onHeroMyListClick,
                             onFirstCatalogRendered = actions.onInitialHomeContentRendered,
                         )
                     }
@@ -292,6 +298,7 @@ internal fun AppTabHost(
 internal fun TabletFloatingTopBar(
     selectedTab: AppScreenTab,
     showLiveTv: Boolean,
+    showSearch: Boolean = true,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
@@ -335,23 +342,25 @@ internal fun TabletFloatingTopBar(
                         )
                     },
                 )
-                TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_search),
-                    selected = selectedTab == AppScreenTab.Search,
-                    onClick = { onTabSelected(AppScreenTab.Search) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_search),
-                            contentDescription = stringResource(Res.string.compose_nav_search),
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Search) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
+                if (showSearch) {
+                    TabletTopPillItem(
+                        label = stringResource(Res.string.compose_nav_search),
+                        selected = selectedTab == AppScreenTab.Search,
+                        onClick = { onTabSelected(AppScreenTab.Search) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(Res.drawable.sidebar_search),
+                                contentDescription = stringResource(Res.string.compose_nav_search),
+                                modifier = Modifier.size(NuvioTokens.Space.s18),
+                                tint = if (selectedTab == AppScreenTab.Search) {
+                                    tokens.colors.textPrimary
+                                } else {
+                                    tokens.colors.textMuted
+                                },
+                            )
+                        },
+                    )
+                }
                 TabletTopPillItem(
                     label = stringResource(Res.string.compose_nav_library),
                     selected = selectedTab == AppScreenTab.Library,

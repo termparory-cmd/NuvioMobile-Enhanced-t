@@ -19,6 +19,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
@@ -103,6 +105,50 @@ class HomeHeroMetaRowsTest {
         compose.runOnIdle { showRatings.value = false }
         compose.onNodeWithText("65").assertDoesNotExist()
         compose.onNodeWithText("7.8").assertIsDisplayed()
+    }
+
+    @Test
+    fun cardModeHidesMdbListRatingsRowWhileKeepingImdbAndCountryMeta() {
+        val item = movie.copy(
+            type = "series",
+            ageRating = "TV-MA",
+            status = "Ended",
+            imdbRating = "8.1",
+            country = "us, gb",
+            language = "en",
+            externalRatings = listOf(
+                MetaExternalRating(PROVIDER_IMDB, 8.1),
+                MetaExternalRating(PROVIDER_TMDB, 65.0),
+                MetaExternalRating(PROVIDER_TRAKT, 70.0),
+            ),
+        )
+        compose.setContent {
+            MaterialTheme {
+                HomeHeroMetaRows(
+                    item = item,
+                    isTablet = false,
+                    showImdbRating = true,
+                    showMdbListRatings = true,
+                    scale = 0.9f,
+                    showRatingsRow = false,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Series").assertIsDisplayed()
+        compose.onNodeWithText("TV-MA").assertIsDisplayed()
+        compose.onNodeWithText("ENDED").assertIsDisplayed()
+        compose.onNodeWithText("US").assertIsDisplayed()
+        compose.onNodeWithText("8.1").assertIsDisplayed()
+        compose.onNodeWithText("65").assertDoesNotExist()
+        compose.onNodeWithText("70").assertDoesNotExist()
+    }
+
+    @Test
+    fun resolveHeroCountryOrLanguagePrefersFirstCountryThenLanguage() {
+        assertEquals("US", resolveHeroCountryOrLanguage(country = "us, ca", language = "en"))
+        assertEquals("JA", resolveHeroCountryOrLanguage(country = " , ", language = "ja"))
+        assertNull(resolveHeroCountryOrLanguage(country = null, language = "  "))
     }
 
     private fun show(item: MetaPreview, showImdbRating: Boolean = true) {

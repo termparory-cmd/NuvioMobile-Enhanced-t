@@ -128,6 +128,8 @@ internal fun MetaPreview.withHeroMeta(meta: HomeHeroMeta): MetaPreview {
         ageRating = details?.ageRating?.takeIf { it.isNotBlank() } ?: ageRating,
         language = details?.language?.takeIf { it.isNotBlank() } ?: language,
         externalRatings = meta.ratings,
+        country = details?.country?.takeIf { it.isNotBlank() } ?: country,
+        heroPoster = details?.heroPoster?.takeIf { it.isNotBlank() } ?: heroPoster,
     )
 }
 

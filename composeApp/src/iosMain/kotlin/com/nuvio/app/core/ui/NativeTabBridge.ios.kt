@@ -9,6 +9,8 @@ import platform.UIKit.UIUserInterfaceIdiomPhone
 private const val liquidGlassNativeTabBarEnabledKey = "NuvioLiquidGlassNativeTabBarEnabled"
 private const val nativeTabBarBehaviorKey = "NuvioNativeTabBarBehavior"
 private const val nativeTabBarVisibleKey = "NuvioNativeTabBarVisible"
+private const val nativeSearchTabVisibleKey = "NuvioSearchTabVisible"
+private const val nativeSearchTabVisibilityDidChangeNotification = "NuvioSearchTabVisibilityDidChange"
 private const val nativeSelectedTabKey = "NuvioNativeSelectedTab"
 private const val nativeTabAccentColorKey = "NuvioNativeTabAccentColor"
 private const val nativeTabAccentGradientKey = "NuvioNativeTabAccentGradient"
@@ -39,6 +41,14 @@ internal actual fun publishNativeTabBarBehavior(behaviorKey: String) {
 
 internal actual fun publishNativeTabBarVisible(visible: Boolean) {
     publishBool(nativeTabBarVisibleKey, visible)
+}
+
+internal actual fun publishNativeSearchTabVisible(visible: Boolean) {
+    NSUserDefaults.standardUserDefaults.setBool(visible, forKey = nativeSearchTabVisibleKey)
+    NSNotificationCenter.defaultCenter.postNotificationName(
+        nativeSearchTabVisibilityDidChangeNotification,
+        null,
+    )
 }
 
 internal actual fun publishNativeSelectedTab(tabName: String) {

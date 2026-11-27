@@ -163,6 +163,12 @@ data class CatalogRoute(
 ) : AppRoute
 
 @Serializable
+data class SearchRoute(
+    override val title: String = "",
+    val autoFocusSearch: Boolean = true,
+) : AppRoute
+
+@Serializable
 data class PlayerRoute(
     val launchId: Long,
     override val title: String = "",

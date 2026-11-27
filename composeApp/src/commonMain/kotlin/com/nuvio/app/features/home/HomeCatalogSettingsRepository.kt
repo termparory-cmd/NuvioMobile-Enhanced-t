@@ -86,6 +86,7 @@ internal enum class HomeHeroArtworkSource(
 ) {
     BACKDROP("backdrop"),
     POSTER("poster"),
+    HERO_CARD_POSTER("hero_card_poster"),
     ;
 
     companion object {
@@ -151,7 +152,7 @@ private data class StoredHomeCatalogSettingsPayload(
 )
 
 object HomeCatalogSettingsRepository {
-    const val HERO_SOURCE_SELECTION_LIMIT = 2
+    const val HERO_SOURCE_SELECTION_LIMIT = 4
 
     /** Bounds for the "start hero trailer after N seconds" preference. */
     const val MIN_HERO_TRAILER_START_DELAY_SECONDS = 0

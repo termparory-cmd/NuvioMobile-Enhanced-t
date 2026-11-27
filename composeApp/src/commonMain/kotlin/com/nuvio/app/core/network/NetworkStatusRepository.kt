@@ -61,6 +61,8 @@ object NetworkStatusRepository {
     private const val FOREGROUND_FAILURE_CONFIRM_DELAY_MS = 2_000L
     private const val PUBLIC_PROBE_PRIMARY = "https://www.gstatic.com/generate_204"
     private const val PUBLIC_PROBE_FALLBACK = "https://cloudflare.com/cdn-cgi/trace"
+    // Extra probe reachable on networks where Google/Cloudflare are blocked.
+    private const val PUBLIC_PROBE_TERTIARY = "https://api.themoviedb.org/3/configuration"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _uiState = MutableStateFlow(NetworkStatusUiState())
@@ -143,14 +145,21 @@ object NetworkStatusRepository {
             )
         }
         if (!supabaseReachable) {
-            return NetworkCondition.ServersUnreachable
+            // The app stays usable with addon catalogs + TMDB alone; only declare the
+            // servers unreachable when TMDB is down as well.
+            val tmdbReachable = probeReachable(PUBLIC_PROBE_TERTIARY)
+            if (!tmdbReachable) {
+                return NetworkCondition.ServersUnreachable
+            }
         }
 
         return NetworkCondition.Online
     }
 
     private suspend fun probePublicInternet(): Boolean =
-        probeReachable(PUBLIC_PROBE_PRIMARY) || probeReachable(PUBLIC_PROBE_FALLBACK)
+        probeReachable(PUBLIC_PROBE_PRIMARY) ||
+            probeReachable(PUBLIC_PROBE_FALLBACK) ||
+            probeReachable(PUBLIC_PROBE_TERTIARY)
 
     private suspend fun probeReachable(
         url: String,
